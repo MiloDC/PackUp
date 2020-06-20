@@ -14,7 +14,7 @@ let private (|ProcessArgs|) (args : string array) =
                 | "-p" -> (res - 1, jf, Set.add (arg.ToLower ()) plats, cs), ""
                 | "-c" -> (res - 1, jf, plats, snd (Int32.TryParse arg)), ""
                 | _ -> (res + 1, jf, plats, cs), opt)
-            ((1, "", Set.empty, 0), "")
+            ((1, "", Set.empty, DefaultCaseSensitivty), "")
         |> fst
 
     result, (jsonFile, platforms, caseSens)
@@ -31,6 +31,6 @@ let main = function
         printfn "\tOptions:"
         printfn "\t\t-p PLATFORM [-p PLATFORM ...] - Pack given platform(s) only"
         printf "\t\t-c # - Bitwise case-sensitivity"
-        printfn " [1 = directories, 2 = filenames, 4 = edits] (default = 0)"
+        printfn " [1 = directories, 2 = filenames, 4 = edits] (default = %d)" DefaultCaseSensitivty
 
         1

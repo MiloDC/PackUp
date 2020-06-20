@@ -62,14 +62,16 @@ type Pack =
 
         sb.ToString ()
 
-let [<Literal>] private Version = "1.0.0"
+let [<Literal>] Version = "1.0.0"
+let [<Literal>] DefaultCaseSensitivty = 0
+
 let private dirSep = Path.DirectorySeparatorChar
 let private reFilePath = Regex "(.+/)([^/]+$)"
 let private reOpts = Regex "^[!]+"
 
 let private normalizePath (path : string) = path.Replace (dirSep, '/')
 
-let regexOf prepString isCaseSensitive (s : string) =
+let private regexOf prepString isCaseSensitive (s : string) =
     Regex (
         if prepString then
             (s.Replace(".", "\\.").Replace ("*", ".*") |> sprintf "^%s$").Replace (".*/$", ".*$")
@@ -78,17 +80,17 @@ let regexOf prepString isCaseSensitive (s : string) =
 
 // BEGIN JSON partial acive patterns
 
-let internal (|JsonBool|_|) (jToken : JToken) =
+let private (|JsonBool|_|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.Boolean) then
         Some (jToken.Value<bool> ())
     else None
 
-let internal (|JsonString|_|) (jToken : JToken) =
+let private (|JsonString|_|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.String) then
         Some (jToken.Value<string> ())
     else None
 
-let internal (|JsonArrayMap|_|) (jToken : JToken) =
+let private (|JsonArrayMap|_|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.Object) then
         downcast (jToken :?> JObject)
         |> Seq.choose (fun (KeyValue (key, jToken)) ->
@@ -97,7 +99,7 @@ let internal (|JsonArrayMap|_|) (jToken : JToken) =
         |> Some
     else None
 
-let internal (|JsonMapMap|_|) (jToken : JToken) =
+let private (|JsonMapMap|_|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.Object) then
         downcast (jToken :?> JObject)
         |> Seq.choose (fun (KeyValue (key, jToken)) ->
@@ -108,7 +110,7 @@ let internal (|JsonMapMap|_|) (jToken : JToken) =
 
 // END JSON partial acive patterns
 
-let internal (|JsonStringArray|) (jToken : JToken) =
+let private (|JsonStringArray|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.Array) then
         jToken.Children ()
         |> Seq.choose (fun t ->
@@ -261,45 +263,78 @@ let packUp (pack : Pack) =
     let allIncludes, allExcludes =
         match pack.files.TryGetValue "*" with
         | true, (incl, excl) -> Seq.toArray incl, Seq.toArray excl
-        | false, _ -> Array.empty, Array.empty
+        | _ -> Array.empty, Array.empty
+    let allEdits =
+        match pack.edits.TryGetValue "*" with
+        | true, edits -> Seq.toArray edits
+        | _ -> Array.empty
 
-    let printPathLen = 64
+    let progressLen = 50
+    let platformPrintLen = 8
 
     pack.platforms
     |> Seq.iter (fun platform ->
+        // 1) Copy files
         let platformDir = workDir.CreateSubdirectory platform
         let includes, excludes =
             match pack.files.TryGetValue platform with
             | true, (incl, excl) ->
                 incl |> Seq.toArray |> Array.append allIncludes,
                 excl |> Seq.toArray |> Array.append allExcludes
-            | false, _ -> allIncludes, allExcludes
-
-        allFiles
-        |> Seq.filter (fun (dir, fileName) -> 
-            excludes
-            |> Array.exists (fun (reDir, reFileNames) ->
-                reDir.IsMatch dir && reFileNames |> Seq.exists (fun re -> re.IsMatch fileName))
-            |> not)
-        |> Seq.choose (fun (dir, fileName) ->
-            if includes |> Array.exists (fun (reDir, reFileNames) ->
-                reDir.IsMatch dir && reFileNames |> Seq.exists (fun re -> re.IsMatch fileName))
-            then
-                Some (
-                    (sprintf "%s%s%s" rootDir dir fileName) |> Path.GetFullPath,
-                    (sprintf "%s/%s%s" platformDir.FullName dir fileName) |> Path.GetFullPath
-                )
-            else None)
-        |> Seq.iter (fun (srcFile, destFile) ->
-            let printPath = srcFile.Replace (Path.GetFullPath rootDir, "")
-            printPath
-                .Substring(0, if printPath.Length < (printPathLen + 1) then printPath.Length else (printPathLen - 3))
-                .PadRight((if printPath.Length < (printPathLen + 1) then printPath.Length else printPathLen), '.')
-                .PadRight (printPathLen, ' ')
-            |> printf "\r%s"
-
+            | _ -> allIncludes, allExcludes
+        let copyFiles =
+            allFiles
+            |> Seq.filter (fun (dir, fileName) ->
+                excludes
+                |> Array.exists (fun (reDir, reFileNames) ->
+                    reDir.IsMatch dir && reFileNames |> Seq.exists (fun re -> re.IsMatch fileName))
+                |> not)
+            |> Seq.choose (fun (dir, fileName) ->
+                if includes |> Array.exists (fun (reDir, reFileNames) ->
+                    reDir.IsMatch dir && reFileNames |> Seq.exists (fun re -> re.IsMatch fileName))
+                then
+                    Some (
+                        (sprintf "%s%s%s" rootDir dir fileName) |> Path.GetFullPath,
+                        (sprintf "%s/%s%s" platformDir.FullName dir fileName) |> Path.GetFullPath
+                    )
+                else None)
+        let copyCount = Seq.length copyFiles |> single
+        let platformPrint =
+            platform
+                .Substring(0, min platform.Length platformPrintLen)
+                .PadRight(platformPrintLen, ' ')
+        copyFiles
+        |> Seq.iteri (fun i (srcFile, destFile) ->
             let destDir = Path.GetDirectoryName destFile
             if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
-            File.Copy (srcFile, destFile, true)))
+            File.Copy (srcFile, destFile, true)
+            (String.replicate (int ((single (progressLen - 2)) * ((single i) / copyCount))) "#")
+                .PadRight (progressLen, '_')
+            |> printf "\r%s [%s]" platformPrint)
+
+        // 2) Edit files
+        match pack.edits.TryGetValue platform with
+        | true, platformEdits -> platformEdits |> Seq.toArray |> Array.append allEdits
+        | _ -> allEdits
+        |> Array.choose (fun (filePath, editMap) ->
+            let fullFilePath =
+                (sprintf "%s/%s" platformDir.FullName filePath).Replace ("/./", "/")
+                |> Path.GetFullPath
+            if File.Exists fullFilePath then Some (fullFilePath, editMap) else None)
+        |> Array.iter (fun (filePath, edits) ->
+            let tmpFilePath = Path.GetTempFileName ()
+            let writer = tmpFilePath |> File.CreateText
+            let reader = File.OpenText filePath
+            while not reader.EndOfStream do
+                edits
+                |> Seq.fold (fun line (re, repl) -> re.Replace (line, repl)) (reader.ReadLine ())
+                |> writer.WriteLine
+            reader.Close ()
+            writer.Close ()
+            File.Move (tmpFilePath, filePath, true))
+        printf "\r%s [%s_]" platformPrint (String.replicate (progressLen - 1) "#")
+
+        // 3) Compress files
+        printfn "\r%s [%s]" platformPrint (String.replicate progressLen "#"))
 
 //    workDir.Delete true
