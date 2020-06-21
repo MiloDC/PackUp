@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <Compile Include="Core.fs" />
+    <Compile Include="Pack.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

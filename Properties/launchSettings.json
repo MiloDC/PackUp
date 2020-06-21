@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "PackIt": {
+      "commandName": "Project",
+      "commandLineArgs": "-p linux packit.json",
+      "workingDirectory": "C:\\Users\\Milo\\Documents\\Code\\_External\\Webroot\\bctisdk\\master\\"
+    }
+  }
+}

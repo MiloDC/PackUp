@@ -2,6 +2,8 @@
 
 open System
 
+let [<Literal>] DefaultCaseSensitivty = 0
+
 let private (|ProcessArgs|) (args : string array) =
     let result, jsonFile, platforms, caseSens =
         args
@@ -22,8 +24,9 @@ let private (|ProcessArgs|) (args : string array) =
 [<EntryPoint>]
 let main = function
     | ProcessArgs (0, (jsonFile, platforms, caseSens)) ->
-        readPackItFile platforms caseSens jsonFile
-        |> packUp
+        jsonFile
+        |> Pack.read platforms caseSens
+        |> Pack.pack
 
         0
     | _ ->
