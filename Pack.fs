@@ -10,10 +10,13 @@ open Newtonsoft.Json.Linq
 type DirMap = ResizeArray<Regex * Regex seq>    // directory, files
 type EditMap = string * (Regex * string) seq    // file_path, (regex, replacement)
 
+let private reFilePath = Regex "(.+/)([^/]+$)"
+let private reOpts = Regex "^[!]+"
+
 type Pack =
     {
         version         : string
-        outFile         : string
+        outFileName     : string
         compressions    : IDictionary<string, Compression>      // platform, compression
         password        : string
         rootDir         : DirectoryInfo
@@ -26,7 +29,7 @@ type Pack =
 
         Printf.bprintf sb "version = %s\n" this.version
 
-        Printf.bprintf sb "outFile = %s\n" this.outFile
+        Printf.bprintf sb "outFile = %s\n" this.outFileName
 
         Printf.bprintf sb "compressions =\n"
         this.compressions
@@ -98,13 +101,10 @@ let read (platforms : Set<string>) caseSensitivity jsonFilePath =
             |> Option.bind (fun j -> match j.["version"] with JsonString s -> Some s | _ -> None)
             |> Option.defaultValue Core.Version
 
-        outFile =
+        outFileName =
             json
             |> Option.bind (fun j ->
-                match j.["outfile"] with
-                | JsonString s ->
-                    sprintf "%s%c%s" rootDir'.FullName dirSep s |> Some
-                | _ -> None)
+                match j.["outfile"] with JsonString fileName -> Some fileName | _ -> None)
             |> Option.defaultValue ""
 
         compressions =
@@ -283,11 +283,17 @@ let pack (pack : Pack) =
         printf "\r%s [%s_]" platformPrint (String.replicate (progressLen - 1) "#")
 
         // 3) Compress files
-        platformDir.FullName
-        |> compress
-            pack.compressions.[platform]
-            (pack.outFile.Replace ("{PLATFORM}", platform))
-            pack.password
+        let c = pack.compressions.[platform]
+        let outFilePath =
+            pack.outFileName.Replace ("{PLATFORM}", platform)
+            |> sprintf "%s%s" rootDir
+        let cFilePath =
+            compress c pack.password outFilePath (sprintf "%s%c" platformDir.FullName dirSep)
+        printfn "compressed file = %s" cFilePath
+(*
+        if (Compression.Tar ||| Compression.Zip) = c then
+            compress Compression.Zip outFilePath pack.password cFilePath |> ignore
+*)
         printfn "\r%s [%s]" platformPrint (String.replicate progressLen "#"))
 
     workDir.Delete true

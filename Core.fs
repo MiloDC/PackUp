@@ -10,8 +10,6 @@ open ICSharpCode.SharpZipLib
 let [<Literal>] Version = "1.0.0"
 
 let internal dirSep = Path.DirectorySeparatorChar
-let internal reFilePath = Regex "(.+/)([^/]+$)"
-let internal reOpts = Regex "^[!]+"
 
 [<Flags>]
 type Compression =
@@ -74,19 +72,26 @@ let internal regexOf prepString isCaseSensitive (s : string) =
         else s
         , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)
 
-let rec compress compression outFile password path =
+let internal compress compression password outFilePath srcPath =
     match compression with
     | c when (int (Compression.Tar &&& c) > 0) ->
         // tar
-        ()
+        let tarFilePath = outFilePath |> sprintf "%s.tar.gz" |> Path.GetFullPath
+        use stream = new GZip.GZipOutputStream (File.Create tarFilePath)
+        use tar = Tar.TarArchive.CreateOutputTarArchive (stream, Tar.TarBuffer.DefaultBlockFactor)
 
-        // tarzip
-        if int (Compression.Zip &&& c) > 0 then
-            compress Compression.Zip outFile password tarFile
+        (srcPath |> Path.GetFullPath |> DirectoryInfo).GetFiles ("*", SearchOption.AllDirectories)
+        |> Array.iter (fun f ->
+            tar.WriteEntry (Tar.TarEntry.CreateEntryFromFile f.FullName, false))
+
+        tarFilePath
     | _ ->
         // zip
         let zip = Zip.FastZip ()
+//        zip.CompressionLevel <- Zip.Compression.Deflater.CompressionLevel.DEFAULT_COMPRESSION
         if not <| String.IsNullOrEmpty password then zip.Password <- password
-        zip.CreateZip (outFile, path, true, "*.*")
 
-        if File.Exists path then File.Delete path
+        let zipFilePath = outFilePath |> sprintf "%s.zip" |> Path.GetFullPath
+        zip.CreateZip (zipFilePath, srcPath |> Path.GetFullPath, true, ".+")
+
+        zipFilePath
