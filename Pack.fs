@@ -13,15 +13,70 @@ type EditMap = string * (Regex * string) seq    // file_path, (regex, replacemen
 let private reFilePath = Regex "(.+/)([^/]+$)"
 let private reOpts = Regex "^[!]+"
 
+let private bprintFiles sb indentation (includes, excludes) =
+    let indent = String.replicate indentation "\t"
+
+    Printf.bprintf sb "%sincludes =\n" indent
+    includes
+    |> Seq.iter (fun (dir, files) ->
+        Printf.bprintf sb "%s\t%O =\n" indent dir
+        files |> Seq.iter (Printf.bprintf sb "%s\t\t%O\n" indent))
+
+    Printf.bprintf sb "%sexcludes =\n" indent
+    excludes
+    |> Seq.iter (fun (dir, files) ->
+        Printf.bprintf sb "%s\t%O =\n" indent dir
+        files |> Seq.iter (Printf.bprintf sb "%s\t\t%O\n" indent))
+
+let private bprintEdits sb indentation editMaps =
+    let indent = String.replicate indentation "\t"
+
+    editMaps
+    |> Seq.iter (fun (filePath, reRepls) ->
+        Printf.bprintf sb "%s%s =\n" indent filePath
+        reRepls |> Seq.iter (fun (re, repl) -> Printf.bprintf sb "%s\t%O -> %s\n" indent re repl))
+
+type Platform =
+    {
+        compression     : Compression
+        files           : DirMap * DirMap       // includes, excludes
+        edits           : EditMap seq
+    }
+
+    member this.bprint sb indentation =
+        let indent = String.replicate indentation "\t"
+
+        Printf.bprintf sb "%scompression =\n" indent
+        match this.compression with
+        | Tar (srcPath, outPath) ->
+            Printf.bprintf sb "%s\ttar\n" indent
+            Printf.bprintf sb "%s\tsrcPath = %s\n" indent srcPath
+            Printf.bprintf sb "%s\toutPath = %s\n" indent outPath
+        | Zip (srcPath, outPath, passwd) ->
+            Printf.bprintf sb "%s\tzip\n" indent
+            Printf.bprintf sb "%s\tsrcPath = %s\n" indent srcPath
+            Printf.bprintf sb "%s\toutPath = %s\n" indent outPath
+            Printf.bprintf sb "%s\tpassword = \"%s\"\n" indent passwd
+        | TarZip (srcPath, outPath, passwd) ->
+            Printf.bprintf sb "%s\ttarzip\n" indent
+            Printf.bprintf sb "%s\tsrcPath = %s\n" indent srcPath
+            Printf.bprintf sb "%s\toutPath = %s\n" indent outPath
+            Printf.bprintf sb "%s\tpassword = \"%s\"\n" indent passwd
+        | NoCompression -> ()
+
+        Printf.bprintf sb "%sfiles =\n" indent
+        bprintFiles sb (indentation + 1) this.files
+
+        Printf.bprintf sb "%sedits =\n" indent
+        bprintEdits sb (indentation + 1) this.edits
+
 type Pack =
     {
         version         : string
-        outFileName     : string
-        compressions    : IDictionary<string, Compression>      // platform, compression
-        password        : string
         rootDir         : DirectoryInfo
-        files           : IDictionary<string, DirMap * DirMap>  // platform, (includes, excludes)
-        edits           : IDictionary<string, EditMap seq>      // platform, edits
+        globalFiles     : DirMap * DirMap       // includes, excludes
+        globalEdits     : EditMap seq
+        platforms       : IDictionary<string, Platform>
     }
 
     override this.ToString () =
@@ -29,51 +84,58 @@ type Pack =
 
         Printf.bprintf sb "version = %s\n" this.version
 
-        Printf.bprintf sb "outFile = %s\n" this.outFileName
-
-        Printf.bprintf sb "compressions =\n"
-        this.compressions
-        |> Seq.iter (fun (KeyValue (platform, compression)) ->
-            Printf.bprintf sb "\tplatform \"%s\" = \"%s\"\n"
-                platform
-                (match compression with
-                | c when c = (Compression.Tar ||| Compression.Zip) -> "tarzip"
-                | Compression.Tar -> "tar"
-                | _ -> "zip"))
-
-        Printf.bprintf sb "password = %s" this.password
-
         Printf.bprintf sb "rootDir = %O\n" this.rootDir
 
-(*
-        Printf.bprintf sb "files =\n"
-        this.files
-        |> Seq.iter (fun (KeyValue (platform, (includes, excludes))) ->
-            Printf.bprintf sb "\tplatform \"%s\" =\n" platform
-            Printf.bprintf sb "\t\tincludes =\n"
-            includes |> Seq.iter (fun (dir, files) ->
-                Printf.bprintf sb "\t\t\t%O =\n" dir
-                files |> Seq.iter (Printf.bprintf sb "\t\t\t\t%O\n"))
-            Printf.bprintf sb "\t\texcludes =\n"
-            excludes |> Seq.iter (fun (dir, files) ->
-                Printf.bprintf sb "\t\t\t%O =\n" dir
-                files |> Seq.iter (Printf.bprintf sb "\t\t\t\t%O\n")))
+        Printf.bprintf sb "globalFiles =\n"
+        bprintFiles sb 1 this.globalFiles
 
-        Printf.bprintf sb "edits =\n"
-        this.edits
-        |> Seq.iter (fun (KeyValue (platform, edits)) ->
-            Printf.bprintf sb "\tplatform \"%s\" =\n" platform
-            edits |> Seq.iter (fun (filePath, reRepls) -> 
-                Printf.bprintf sb "\t\t%s =\n" filePath
-                reRepls |> Seq.iter (fun (re, repl) ->
-                    Printf.bprintf sb "\t\t\t%O -> %s\n" re repl)))
-*)
+        Printf.bprintf sb "globalEdits =\n"
+        bprintEdits sb 1 this.globalEdits
+
+        Printf.bprintf sb "platforms =\n"
+        this.platforms
+        |> Seq.iter (fun (KeyValue (name, platform)) ->
+            Printf.bprintf sb "\t\"%s\" =\n" name
+            platform.bprint sb 2)
 
         sb.ToString ()
 
-let read (platforms : Set<string>) caseSensitivity jsonFilePath =
-    let dirsCaseSens, filenamesCaseSens, editsCaseSens =
-        (caseSensitivity &&& 1) > 0, (caseSensitivity &&& 2) > 0, (caseSensitivity &&& 4) > 0
+let private filesOf areFileNamesCaseSensitive (JsonStringArray files) =
+    files
+    |> Array.choose (fun filePath ->
+        match (reFilePath.Match filePath).Groups with
+        | g when 3 = g.Count -> Some (g.[1].Value, g.[2].Value)
+        | _ -> None)
+    |> Array.fold (fun (dirMap : Dictionary<string, ResizeArray<string>>) (dir, fileName) ->
+        match dirMap.TryGetValue dir with
+        | true, fileNamesResizeArray -> fileNamesResizeArray.Add fileName
+        | _ ->
+            dirMap.[dir] <- ResizeArray<string> ()
+            dirMap.[dir].Add fileName
+        dirMap)
+        (Dictionary<string, ResizeArray<string>> ())
+    |> Seq.fold (fun (incl : DirMap, excl) (KeyValue (dir, fNames)) ->
+        (if (reOpts.Match dir).Value.Contains '!' then excl else incl)
+            .Add (
+                reOpts.Replace (dir, "") |> regexOf true true,
+                fNames |> Seq.map (fun f -> regexOf true areFileNamesCaseSensitive f)
+            )
+        incl, excl)
+        (DirMap (), DirMap ())
+
+let private editsOf areCaseSensitive (JsonArrayMap map) =
+    map
+    |> Seq.choose (fun (KeyValue (filePath, JsonStringArray jArray)) ->
+        let reRepls =
+            jArray
+            |> Seq.choose (fun str ->
+                match str.Split str.[0] with
+                | [| ""; reStr; replStr |] -> Some (regexOf false areCaseSensitive reStr, replStr)
+                | _ -> None)
+        if Seq.length reRepls > 0 then Some (filePath, reRepls) else None)
+
+let read (platforms' : Set<string>) caseSensitivity jsonFilePath =
+    let filenameCaseSens, editCaseSens = (caseSensitivity &&& 1) > 0, (caseSensitivity &&& 2) > 0
 
     let jsonFullFilePath =
         if File.Exists jsonFilePath then
@@ -94,110 +156,61 @@ let read (platforms : Set<string>) caseSensitivity jsonFilePath =
     let rootDir' =
         if json.IsSome then (FileInfo jsonFullFilePath).Directory
         else DirectoryInfo (Directory.GetCurrentDirectory ())
+    let rootDirStr = sprintf "%s%c" rootDir'.FullName dirSep
 
     {
         version =
-            json
-            |> Option.bind (fun j -> match j.["version"] with JsonString s -> Some s | _ -> None)
-            |> Option.defaultValue Core.Version
-
-        outFileName =
-            json
-            |> Option.bind (fun j ->
-                match j.["outfile"] with JsonString fileName -> Some fileName | _ -> None)
-            |> Option.defaultValue ""
-
-        compressions =
-            json
-            |> Option.bind (fun j ->
-                let (JsonStringMap compressionMap) = j.["compressions"]
-                compressionMap
-                |> Seq.choose (fun (KeyValue (platform, CompressionValue compression)) ->
-                    if
-                        (not <| String.IsNullOrWhiteSpace platform)
-                        && (platforms.IsEmpty || platforms.Contains platform)
-                    then Some (platform, compression)
-                    else None)
-                |> dict
-                |> Some)
-            |> Option.defaultValue (dict Seq.empty)
-
-        password =
-            json
-            |> Option.bind (fun j -> match j.["password"] with JsonString s -> Some s | _ -> None)
-            |> Option.defaultValue ""
+            match json with
+            | Some j -> match j.["version"] with JsonString s -> s | _ -> Core.Version
+            | _ -> Core.Version
 
         rootDir = rootDir'
 
-        files =
+        globalFiles =
+            match json with
+            | Some j -> filesOf filenameCaseSens j.["global_files"]
+            | _ -> DirMap (), DirMap ()
+
+        globalEdits =
+            match json with
+            | Some j -> editsOf editCaseSens j.["global_edits"]
+            | _ -> Seq.empty
+
+        platforms =
             json
             |> Option.bind (fun j ->
-                match j.["files"] with JsonArrayMap map -> Some map | _ -> None)
-            |> Option.bind (fun map ->
+                let (JsonMapMap map) = j.["platforms"]
                 map
-                |> Seq.filter (fun (KeyValue (platform, _)) ->
-                    platforms.IsEmpty || platform.Equals "*" || platforms.Contains platform)
-                |> Seq.map (fun (KeyValue (platform, JsonStringArray filePaths)) ->
-                    let includes, excludes =
-                        filePaths
-                        |> Seq.choose (fun filePath ->
-                            match (reFilePath.Match filePath).Groups with
-                            | g when 3 = g.Count -> Some (g.[1].Value, g.[2].Value)
-                            | _ -> None)
-                        |> Seq.fold (fun (dirMap : Dictionary<string, ResizeArray<string>>) (dir, fileName) ->
-                            match dirMap.TryGetValue dir with
-                            | true, fileNamesResizeArray -> fileNamesResizeArray.Add fileName
-                            | _ ->
-                                dirMap.[dir] <- ResizeArray<string> ()
-                                dirMap.[dir].Add fileName
-                            dirMap)
-                            (Dictionary<string, ResizeArray<string>> ())
-                        |> Seq.fold (fun (incl : DirMap, excl) (KeyValue (dir, fNames)) ->
-                            (if (reOpts.Match dir).Value.Contains '!' then excl else incl)
-                                .Add (
-                                    reOpts.Replace (dir, "") |> regexOf true dirsCaseSens,
-                                    fNames |> Seq.map (fun f -> regexOf true filenamesCaseSens f)
-                                )
-                            incl, excl)
-                            (DirMap (), DirMap ())
+                |> Seq.filter (fun (KeyValue (platform, jObj)) ->
+                    platforms'.IsEmpty || platforms'.Contains platform)
+                |> Seq.map (fun (KeyValue (platform, jObj)) ->
+                    let platDir = sprintf "%s_PACKIT_%c%s%c" rootDirStr dirSep platform dirSep
+                    let outPath =
+                        match jObj.["outfile"] with JsonString s -> s | _ -> platform
+                        |> sprintf "%s%s" rootDirStr
+                    let passwd = match jObj.["password"] with JsonString s -> s | _ -> ""
 
-                    platform.ToLower (), (includes, excludes))
-                |> dict
-                |> Some)
-            |> Option.defaultValue (dict Seq.empty)
+                    platform,
+                    {
+                        compression =
+                            match jObj.["compression"] with
+                            | JsonString s when s = "tar" -> Tar (platDir, outPath)
+                            | JsonString s when s = "zip" -> Zip (platDir, outPath, passwd)
+                            | JsonString s when s = "tarzip" -> TarZip (platDir, outPath, passwd)
+                            | _ -> NoCompression
 
-        edits =
-            json
-            |> Option.bind (fun j -> match j.["edits"] with JsonMapMap map -> Some map | _ -> None)
-            |> Option.bind (fun map ->
-                map
-                |> Seq.filter (fun (KeyValue (platform, _)) ->
-                    platforms.IsEmpty || platform.Equals "*" || platforms.Contains platform)
-                |> Seq.choose (fun (KeyValue (platform, jEditsObj)) ->
-                    match jEditsObj with
-                    | JsonArrayMap arrayMap ->
-                        let editMap =
-                            arrayMap
-                            |> Seq.choose (fun (KeyValue (filePath, JsonStringArray jArray)) ->
-                                let reRepls =
-                                    jArray
-                                    |> Seq.choose (fun str ->
-                                        match str.Split str.[0] with
-                                        | [| ""; reStr; replStr |] ->
-                                            Some (regexOf false editsCaseSens reStr, replStr)
-                                        | _ -> None)
-                                if Seq.length reRepls > 0 then
-                                    Some (filePath, reRepls)
-                                else None)
-                        Some (platform.ToLower (), editMap)
-                    | _ -> None)
-                |> dict
+                        files = filesOf filenameCaseSens jObj.["files"]
+
+                        edits = editsOf editCaseSens jObj.["edits"]
+                    })
                 |> Some)
-            |> Option.defaultValue (dict Seq.empty)
+            |> Option.defaultValue Seq.empty
+            |> dict
     }
 
 let pack (pack : Pack) =
-//    printfn "%O" pack
+    printfn "%O" pack
+(*
     let workDirPath = sprintf "%s%c_PACKIT_" pack.rootDir.FullName dirSep
     if Directory.Exists workDirPath then Directory.Delete (workDirPath, true)
     let workDir = Directory.CreateDirectory workDirPath
@@ -289,7 +302,7 @@ let pack (pack : Pack) =
             |> sprintf "%s%s" rootDir
         let cFilePath =
             compress c pack.password outFilePath (sprintf "%s%c" platformDir.FullName dirSep)
-        printfn "compressed file = %s" cFilePath
+        printfn "\ncompressed file = %s" cFilePath
 (*
         if (Compression.Tar ||| Compression.Zip) = c then
             compress Compression.Zip outFilePath pack.password cFilePath |> ignore
@@ -297,3 +310,4 @@ let pack (pack : Pack) =
         printfn "\r%s [%s]" platformPrint (String.replicate progressLen "#"))
 
     workDir.Delete true
+*)

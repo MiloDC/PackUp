@@ -34,6 +34,6 @@ let main = function
         printfn "\tOptions:"
         printfn "\t\t-p PLATFORM [-p PLATFORM ...] - Pack given platform(s) only"
         printf "\t\t-c # - Bitwise case-sensitivity"
-        printfn " [1 = directories, 2 = filenames, 4 = edits] (default = %d)" DefaultCaseSensitivty
+        printfn " [1 = filenames, 2 = edits] (default = %d)" DefaultCaseSensitivty
 
         1
