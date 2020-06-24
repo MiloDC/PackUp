@@ -12,10 +12,15 @@ let [<Literal>] Version = "1.0.0"
 let internal dirSep = Path.DirectorySeparatorChar
 
 type Compression =
-    | Tar of srcPath : string * outFilePath : string
-    | Zip of srcPath : string * outFilePath : string * password : string
-    | TarZip of srcPath : string * outFilePath : string * password : string
+    | Tar
+    | Zip of password : string
+    | TarZip of password : string
     | NoCompression
+
+let internal (|JsonString|_|) (jToken : JToken) =
+    if (null <> jToken) && (jToken.Type = JTokenType.String) then
+        Some (jToken.Value<string> ())
+    else None
 
 let internal (|JsonStringArray|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.Array) then
@@ -25,8 +30,7 @@ let internal (|JsonStringArray|) (jToken : JToken) =
                 let str = t.Value<string> ()
                 if not <| String.IsNullOrEmpty str then Some str else None
             else None)
-        |> Seq.toArray
-    else Array.empty
+    else Seq.empty
 
 let internal (|JsonArrayMap|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.Object) then
@@ -44,19 +48,6 @@ let internal (|JsonMapMap|) (jToken : JToken) =
     else Seq.empty
     |> dict
 
-let internal (|JsonStringMap|) (jToken : JToken) =
-    if (null <> jToken) && (jToken.Type = JTokenType.Object) then
-        downcast (jToken :?> JObject)
-        |> Seq.choose (fun (KeyValue (key, jToken)) ->
-            if jToken.Type = JTokenType.String then Some (key, jToken.Value<string> ()) else None)
-    else Seq.empty
-    |> dict
-
-let internal (|JsonString|_|) (jToken : JToken) =
-    if (null <> jToken) && (jToken.Type = JTokenType.String) then
-        Some (jToken.Value<string> ())
-    else None
-
 let internal normalizePath (path : string) = path.Replace (dirSep, '/')
 
 let internal regexOf prepString isCaseSensitive (s : string) =
@@ -66,38 +57,42 @@ let internal regexOf prepString isCaseSensitive (s : string) =
         else s
         , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)
 
-(*
-let internal compress compression password outFilePath srcPath =
+let rec internal compress outPath srcPath compression =
+    let srcPath' = Path.GetFullPath srcPath
     match compression with
-    | c when (int (Compression.Tar &&& c) > 0) ->
-        // tar
-        let tarFilePath = outFilePath |> sprintf "%s.tar.gz" |> Path.GetFullPath
+    | Tar ->
+        let tarFilePath = outPath |> sprintf "%s.tar.gz" |> Path.GetFullPath
         File.Delete tarFilePath
-        let tmpFilePath = Path.GetFileName tarFilePath |> sprintf "%s%s" srcPath |> Path.GetFullPath
-        printfn "tmpFilePath = %s" tmpFilePath
-//        use stream = new GZip.GZipOutputStream (File.Create tarFilePath)
-        let stream = new GZip.GZipOutputStream (File.Create tmpFilePath)
-        let tar = Tar.TarArchive.CreateOutputTarArchive (stream, Tar.TarBuffer.DefaultBlockFactor)
-        tar.RootPath <- srcPath
+        use stream = new GZip.GZipOutputStream (File.Create tarFilePath)
 
-        (srcPath |> Path.GetFullPath |> DirectoryInfo).GetFiles ("*", SearchOption.AllDirectories)
+        use tar = Tar.TarArchive.CreateOutputTarArchive (stream, Tar.TarBuffer.DefaultBlockFactor)
+        tar.RootPath <- srcPath'
+
+        (DirectoryInfo srcPath').GetFiles ("*", SearchOption.AllDirectories)
         |> Array.iter (fun f ->
-            if f.FullName <> tmpFilePath then
+            if f.FullName <> tarFilePath then
                 tar.WriteEntry (Tar.TarEntry.CreateEntryFromFile f.FullName, false))
 
-        tar.Close ()
-        stream.Close ()
-        File.Move (tmpFilePath, tarFilePath)
         tarFilePath
-    | _ ->
-        // zip
+    | Zip password ->
         let zip = Zip.FastZip ()
 //        zip.CompressionLevel <- Zip.Compression.Deflater.CompressionLevel.DEFAULT_COMPRESSION
         if not <| String.IsNullOrEmpty password then zip.Password <- password
 
-        let zipFilePath = outFilePath |> sprintf "%s.zip" |> Path.GetFullPath
+        let zipFilePath = outPath |> sprintf "%s.zip" |> Path.GetFullPath
         File.Delete zipFilePath
-        zip.CreateZip (zipFilePath, Path.GetFullPath srcPath, true, ".+")
+
+        let isDirSrcPath = Directory.Exists srcPath'
+        let sourceDirctory, fileFilter =
+            (if isDirSrcPath then srcPath' else Path.GetDirectoryName srcPath'),
+            if isDirSrcPath then ".+" else Path.GetFileName srcPath'
+        zip.CreateZip (zipFilePath, sourceDirctory, isDirSrcPath, fileFilter)
 
         zipFilePath
-*)
+    | TarZip password ->
+        let tarFilePath = compress outPath srcPath Tar
+        let zipFilePath = compress outPath tarFilePath (Zip password)
+        File.Delete tarFilePath
+
+        zipFilePath
+    | NoCompression -> null
