@@ -57,7 +57,7 @@ let internal regexOf prepString isCaseSensitive (s : string) =
         else s
         , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)
 
-let rec internal compress outPath srcPath compression =
+let rec internal compress compression outPath srcPath =
     let srcPath' = Path.GetFullPath srcPath
     match compression with
     | Tar ->
@@ -68,11 +68,15 @@ let rec internal compress outPath srcPath compression =
         use tar = Tar.TarArchive.CreateOutputTarArchive (stream, Tar.TarBuffer.DefaultBlockFactor)
         tar.RootPath <- srcPath'
 
+        let currDir = Directory.GetCurrentDirectory ()
+        Directory.SetCurrentDirectory srcPath
+
         (DirectoryInfo srcPath').GetFiles ("*", SearchOption.AllDirectories)
         |> Array.iter (fun f ->
             if f.FullName <> tarFilePath then
                 tar.WriteEntry (Tar.TarEntry.CreateEntryFromFile f.FullName, false))
 
+        Directory.SetCurrentDirectory currDir
         tarFilePath
     | Zip password ->
         let zip = Zip.FastZip ()
@@ -90,8 +94,8 @@ let rec internal compress outPath srcPath compression =
 
         zipFilePath
     | TarZip password ->
-        let tarFilePath = compress outPath srcPath Tar
-        let zipFilePath = compress outPath tarFilePath (Zip password)
+        let tarFilePath = compress Tar outPath srcPath
+        let zipFilePath = compress (Zip password) outPath tarFilePath
         File.Delete tarFilePath
 
         zipFilePath

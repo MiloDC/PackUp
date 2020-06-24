@@ -283,8 +283,9 @@ let pack (pack : Pack) =
         printf "\r%s [%s_]" platformPrint (String.replicate (progressLen - 1) "#")
 
         // 3) Compress files
-        let srcDir = sprintf "%s%c" (DirectoryInfo platform.sourceDir).Parent.FullName dirSep
-        compress platform.outPath srcDir platform.compression |> ignore
+        sprintf "%s%c" (DirectoryInfo platform.sourceDir).Parent.FullName dirSep
+        |> compress platform.compression platform.outPath
+        |> ignore
         printfn "\r%s [%s]" platformPrint (String.replicate progressLen "#"))
 
     let packItRootDir = sprintf "%s%s" rootDir packItDir
