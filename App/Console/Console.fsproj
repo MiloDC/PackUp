@@ -3,18 +3,15 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyName>packit</AssemblyName>
+    <AssemblyName>PackIt</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Core.fs" />
-    <Compile Include="Pack.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
-    <PackageReference Include="SharpZipLib.NETStandard" Version="1.0.7" />
+    <ProjectReference Include="..\..\Library.fsproj" />
   </ItemGroup>
 
   <ItemGroup>

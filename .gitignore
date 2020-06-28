@@ -46,6 +46,7 @@
 ipch/
 Ankh.NoLoad
 *.dtbcache
+launchSettings.json
 
 #NuGet
 # Ignore NuGet Packages

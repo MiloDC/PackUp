@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <AssemblyName>PackItLib</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Core.fs" />
+    <Compile Include="Compression.fs" />
+    <Compile Include="Platform.fs" />
+    <Compile Include="Pack.fs" />
+    <Compile Include="Json.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="SharpZipLib.NETStandard" Version="1.0.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="FSharp.Core" Version="4.7.2" />
+  </ItemGroup>
+
+</Project>
