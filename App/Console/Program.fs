@@ -1,4 +1,4 @@
-﻿module PackIt.Program
+﻿module PackUp.Program
 
 open Pack
 
@@ -34,12 +34,12 @@ let main (ProcessArgs (result, jsonFile, platforms, caseSensitivity, action)) =
     if 0 = result then
         Json.readFile platforms caseSensitivity jsonFile |> action
     else
-        printfn "PackIt version %s" Core.Version
-        printfn "Syntax: packit [OPTIONS] JSON_FILE"
+        printfn "PackUp version %s" Core.Version
+        printfn "Syntax: PackUp [OPTIONS] JSON_FILE"
         printfn "Options:"
         printfn "\t-p PLATFORM [-p PLATFORM ...] - Pack given platform(s) only"
         printf "\t-c # - Bitwise case-sensitivity"
         printfn " [1 = filenames, 2 = edits] (default = %d)" DefaultCaseSensitivty
-        printfn "\t-v - output contents of PackIt file only"
+        printfn "\t-v - output contents of PackUp file only"
 
     result

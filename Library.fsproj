@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyName>PackItLib</AssemblyName>
+    <AssemblyName>PackUpLib</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,5 +1,5 @@
 ﻿[<RequireQualifiedAccess>]
-module PackIt.Json
+module PackUp.Json
 
 open System
 open System.Collections.Generic
@@ -137,7 +137,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
 
                         sourceDir =
                             sprintf "%s%s%c%s%c"
-                                (packItDirOf rootDir'.FullName) platform dirSep tgtName dirSep
+                                (packUpDirOf rootDir'.FullName) platform dirSep tgtName dirSep
 
                         targetPath = sprintf "%s%c%s" rootDir'.FullName dirSep tgtName
 

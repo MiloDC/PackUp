@@ -1,4 +1,4 @@
-﻿module PackIt.Pack
+﻿module PackUp.Pack
 
 open System
 open System.Collections.Generic
@@ -116,5 +116,5 @@ let pack (progressCallback : (Progress -> unit) option) pack =
                 platform.targetPath
         progressCallback |> Option.iter (fun fn -> fn (Complete (platfmName, targetPath))))
 
-    let packItRootDir = packItDirOf rootDir
-    if Directory.Exists packItRootDir then Directory.Delete (packItRootDir, true)
+    let packUpRootDir = packUpDirOf rootDir
+    if Directory.Exists packUpRootDir then Directory.Delete (packUpRootDir, true)

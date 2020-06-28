@@ -1,5 +1,5 @@
 ﻿[<AutoOpen>]
-module PackIt.Core
+module PackUp.Core
 
 open System.Text.RegularExpressions
 
@@ -9,8 +9,8 @@ let internal dirSep = System.IO.Path.DirectorySeparatorChar
 
 let internal (|NativeFullPath|) = System.IO.Path.GetFullPath
 
-let packItDirOf (NativeFullPath rootPath) =
-    sprintf "%s%c__PACKIT__%c" (rootPath.TrimEnd dirSep) dirSep dirSep
+let packUpDirOf (NativeFullPath rootPath) =
+    sprintf "%s%c__PACKUP__%c" (rootPath.TrimEnd dirSep) dirSep dirSep
 
 type DirMap = (Regex * Regex seq) list          // (directory, files)
 type EditMap = string * (Regex * string) seq    // file_path, (regex, replacement)

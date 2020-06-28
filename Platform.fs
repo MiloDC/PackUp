@@ -1,4 +1,4 @@
-﻿module PackIt.Platform
+﻿module PackUp.Platform
 
 open Compression
 

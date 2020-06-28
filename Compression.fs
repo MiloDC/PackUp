@@ -1,4 +1,4 @@
-﻿module PackIt.Compression
+﻿module PackUp.Compression
 
 open System.IO
 open ICSharpCode.SharpZipLib
