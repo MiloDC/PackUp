@@ -123,7 +123,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
                 |> Seq.filter (fun (KeyValue (platform, jObj)) ->
                     platforms'.IsEmpty || platforms'.Contains platform)
                 |> Seq.map (fun (KeyValue (platform, jObj)) ->
-                    let outName = match jObj.["out_name"] with JsonString s -> s | _ -> platform
+                    let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> platform
                     let password = match jObj.["password"] with JsonString s -> s | _ -> ""
 
                     platform,
@@ -137,9 +137,9 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
 
                         sourceDir =
                             sprintf "%s%s%c%s%c"
-                                (packItDirOf rootDir'.FullName) platform dirSep outName dirSep
+                                (packItDirOf rootDir'.FullName) platform dirSep tgtName dirSep
 
-                        outPath = sprintf "%s%c%s" rootDir'.FullName dirSep outName
+                        targetPath = sprintf "%s%c%s" rootDir'.FullName dirSep tgtName
 
                         files = filesOf filenameCaseSens jObj.["files"]
 
@@ -147,5 +147,4 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
                     })
                 |> Some)
             |> Option.defaultValue Seq.empty
-            |> dict
     }

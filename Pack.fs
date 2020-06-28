@@ -11,7 +11,7 @@ type Pack =
         rootDir         : DirectoryInfo
         globalFiles     : DirMap * DirMap       // includes, excludes
         globalEdits     : EditMap list
-        platforms       : IDictionary<string, Platform>
+        platforms       : (string * Platform) seq
     }
 
     override this.ToString () =
@@ -36,7 +36,7 @@ type Pack =
 
         Printf.bprintf sb "platforms =\n"
         this.platforms
-        |> Seq.iter (fun (KeyValue (name, platform)) ->
+        |> Seq.iter (fun (name, platform) ->
             Printf.bprintf sb "\t\"%s\" =\n" name
             platform.bprint sb 2)
 
@@ -44,7 +44,7 @@ type Pack =
 
 type Progress =
     | Incomplete of platform : string * percent : single
-    | Complete of platform : string * outPath : string
+    | Complete of platform : string * targetPath : string
 
 let private normalizePath (path : string) = path.Replace (dirSep, '/')
 
@@ -57,7 +57,7 @@ let pack (progressCallback : (Progress -> unit) option) pack =
             (if String.IsNullOrEmpty dir then "./" else dir), fileInfo.Name)
 
     pack.platforms
-    |> Seq.iter (fun (KeyValue (platfmName, platform)) ->
+    |> Seq.iter (fun (platfmName, platform) ->
         // 1) Copy files
         if Directory.Exists platform.sourceDir then Directory.Delete (platform.sourceDir, true)
         let platformDir = Directory.CreateDirectory platform.sourceDir
@@ -86,8 +86,8 @@ let pack (progressCallback : (Progress -> unit) option) pack =
             let destDir = Path.GetDirectoryName destFile
             if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
             File.Copy (srcFile, destFile, true)
-            if progressCallback.IsSome then
-                progressCallback.Value (Incomplete (platfmName, 0.975f * (single i / copyCount))))
+            progressCallback |> Option.iter (fun fn ->
+                fn (Incomplete (platfmName, 0.975f * (single i / copyCount)))))
 
         // 2) Edit files
         pack.globalEdits @ platform.edits
@@ -106,16 +106,15 @@ let pack (progressCallback : (Progress -> unit) option) pack =
             reader.Close ()
             writer.Close ()
             File.Move (tmpFilePath, filePath, true))
-        if progressCallback.IsSome then progressCallback.Value (Incomplete (platfmName, 0.99f))
+        progressCallback |> Option.iter (fun fn -> fn (Incomplete (platfmName, 0.99f)))
 
         // 3) Compress files
-        let outPath =
+        let targetPath =
             platform.compression
             |> Compression.compress
                 (sprintf "%s%c" (DirectoryInfo platform.sourceDir).Parent.FullName dirSep)
-                platform.outPath
-        if progressCallback.IsSome then
-            progressCallback.Value (Complete (platfmName, outPath)))
+                platform.targetPath
+        progressCallback |> Option.iter (fun fn -> fn (Complete (platfmName, targetPath))))
 
     let packItRootDir = packItDirOf rootDir
     if Directory.Exists packItRootDir then Directory.Delete (packItRootDir, true)

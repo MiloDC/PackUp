@@ -9,9 +9,9 @@ type Compression =
     | TarZip of password : string
     | None
 
-let rec internal compress (NativeFullPath srcPath) outPath = function
+let rec internal compress (NativeFullPath srcPath) targetPath = function
     | Tar ->
-        let (NativeFullPath tarFilePath) = sprintf "%s.tar.gz" outPath
+        let (NativeFullPath tarFilePath) = sprintf "%s.tar.gz" targetPath
         File.Delete tarFilePath
         use stream = new GZip.GZipOutputStream (File.Create tarFilePath)
 
@@ -33,7 +33,7 @@ let rec internal compress (NativeFullPath srcPath) outPath = function
 //        zip.CompressionLevel <- Zip.Compression.Deflater.CompressionLevel.DEFAULT_COMPRESSION
         if not <| System.String.IsNullOrEmpty password then zip.Password <- password
 
-        let (NativeFullPath zipFilePath) = sprintf "%s.zip" outPath
+        let (NativeFullPath zipFilePath) = sprintf "%s.zip" targetPath
         File.Delete zipFilePath
 
         let isDirSrcPath = Directory.Exists srcPath
@@ -44,8 +44,8 @@ let rec internal compress (NativeFullPath srcPath) outPath = function
 
         zipFilePath
     | TarZip password ->
-        let tarFilePath = compress srcPath outPath Tar
-        let zipFilePath = compress tarFilePath outPath (Zip password)
+        let tarFilePath = compress srcPath targetPath Tar
+        let zipFilePath = compress tarFilePath targetPath (Zip password)
         File.Delete tarFilePath
 
         zipFilePath

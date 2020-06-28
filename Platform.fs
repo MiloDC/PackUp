@@ -6,7 +6,7 @@ type Platform =
     {
         compression     : Compression
         sourceDir       : string
-        outPath         : string
+        targetPath      : string
         files           : DirMap * DirMap       // includes, excludes
         edits           : EditMap list
     }
@@ -23,7 +23,7 @@ type Platform =
 
         Printf.bprintf sb "%ssourceDir = \"%s\"\n" indentStr this.sourceDir
 
-        Printf.bprintf sb "%soutPath = \"%s\"\n" indentStr this.outPath
+        Printf.bprintf sb "%stargetPath = \"%s\"\n" indentStr this.targetPath
 
         let includes, excludes = this.files
         if includes.Length > 0 then
