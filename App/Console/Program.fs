@@ -1,5 +1,6 @@
 ﻿module PackUp.Program.Program
 
+open System.IO
 open PackUp
 open PackUp.Pack
 
@@ -19,15 +20,16 @@ let private (|ProcessArgs|) (args : string array) =
     |> Array.fold (fun ((result, file, plats, caseSens, action), opt) arg ->
         if arg.StartsWith '-' then
             match arg with
-            | "-v" -> (result, file, plats, caseSens, printfn "%O"), ""
+            | "-v" -> (result, file, plats, caseSens, Seq.iter (fun p -> printfn "%O" p)), ""
             | _ -> (result + 1, file, plats, caseSens, action), arg
         else
             match opt with
-            | "" -> (result - 1, arg, plats, caseSens, action), "-"
+            | "" when File.Exists arg ->
+                (result - 1, (FileInfo arg).FullName, plats, caseSens, action), "-"
             | "-p" -> (result - 1, file, Set.add (arg.ToLower ()) plats, caseSens, action), ""
             | "-c" -> (result - 1, file, plats, snd (System.Int32.TryParse arg), action), ""
             | _ -> (result + 1, file, plats, caseSens, action), opt)
-        ((1, "", Set.empty, DefaultCaseSensitivty, pack (Some progressBar)), "")
+        ((1, "", Set.empty, DefaultCaseSensitivty, Seq.iter (pack (Some progressBar))), "")
     |> fst
 
 [<EntryPoint>]

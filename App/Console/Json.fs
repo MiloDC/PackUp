@@ -5,7 +5,6 @@ open System
 open System.Collections.Generic
 open Newtonsoft.Json.Linq
 open PackUp
-open PackUp.Platform
 open PackUp.Pack
 
 let private (|JsonString|_|) (jToken : JToken) =
@@ -76,67 +75,62 @@ let private editsOf caseSensitive (JsonArrayMap map) =
     |> Seq.toList
 
 let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
-    let filenameCaseSens, editCaseSens = (caseSensitivity &&& 1) > 0, (caseSensitivity &&& 2) > 0
-
-    let jsonFullFilePath =
-        if IO.File.Exists jsonFilePath then
-            (IO.FileInfo jsonFilePath).FullName
-        else jsonFilePath
-
     let json =
         try
-            IO.File.ReadAllText jsonFullFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
+            IO.File.ReadAllText jsonFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
         with
         | :? Newtonsoft.Json.JsonReaderException as exc ->
-            printfn "Error reading JSON from %s" jsonFullFilePath
+            printfn "Error reading JSON from %s" jsonFilePath
             None
         | _ ->
-            printfn "Error reading file %s" jsonFullFilePath
+            printfn "Error reading file %s" jsonFilePath
             None
 
+    let filenameCaseSens, editCaseSens = (caseSensitivity &&& 1) > 0, (caseSensitivity &&& 2) > 0
+
+    let globalFiles =
+        match json with
+        | Some j -> filesOf filenameCaseSens j.["global_files"]
+        | _ -> [], []
+
+    let globalEdits =
+        match json with
+        | Some j -> editsOf editCaseSens j.["global_edits"]
+        | _ -> []
+
     let rootDir' =
-        if json.IsSome then (IO.FileInfo jsonFullFilePath).Directory
+        if json.IsSome then (IO.FileInfo jsonFilePath).Directory
         else IO.DirectoryInfo (IO.Directory.GetCurrentDirectory ())
 
-    {
-        rootDir = rootDir'.FullName
+    json
+    |> Option.bind (fun j ->
+        let (JsonMapMap map) = j.["platforms"]
+        map
+        |> Seq.filter (fun (KeyValue (platform, jObj)) ->
+            platforms'.IsEmpty || platforms'.Contains platform)
+        |> Seq.map (fun (KeyValue (platform, jObj)) ->
+            let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> platform
+            let password = match jObj.["password"] with JsonString s -> s | _ -> null
 
-        globalFiles =
-            match json with
-            | Some j -> filesOf filenameCaseSens j.["global_files"]
-            | _ -> [], []
+            {
+                description = platform
 
-        globalEdits =
-            match json with
-            | Some j -> editsOf editCaseSens j.["global_edits"]
-            | _ -> []
+                rootDir = rootDir'.FullName
 
-        platforms =
-            json
-            |> Option.bind (fun j ->
-                let (JsonMapMap map) = j.["platforms"]
-                map
-                |> Seq.filter (fun (KeyValue (platform, jObj)) ->
-                    platforms'.IsEmpty || platforms'.Contains platform)
-                |> Seq.map (fun (KeyValue (platform, jObj)) ->
-                    let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> platform
-                    let password = match jObj.["password"] with JsonString s -> s | _ -> ""
+                compression =
+                    match jObj.["compression"] with
+                    | JsonString s when s = "tar" -> Compression.Tar
+                    | JsonString s when s = "zip" -> Compression.Zip password
+                    | JsonString s when s = "tarzip" -> Compression.TarZip password
+                    | _ -> Compression.None
 
-                    platform,
-                    {
-                        compression =
-                            match jObj.["compression"] with
-                            | JsonString s when s = "tar" -> Compression.Tar
-                            | JsonString s when s = "zip" -> Compression.Zip password
-                            | JsonString s when s = "tarzip" -> Compression.TarZip password
-                            | _ -> Compression.None
+                targetPath = sprintf "%s/%s" (normalizePath rootDir'.FullName) tgtName
 
-                        targetPath = sprintf "%s/%s" (normalizePath rootDir'.FullName) tgtName
+                files =
+                    let incl, excl = filesOf filenameCaseSens jObj.["files"]
+                    fst globalFiles @ incl, snd globalFiles @ excl
 
-                        files = filesOf filenameCaseSens jObj.["files"]
-
-                        edits = editsOf editCaseSens jObj.["edits"]
-                    })
-                |> Some)
-            |> Option.defaultValue Seq.empty
-    }
+                edits = globalEdits @ editsOf editCaseSens jObj.["edits"]
+            })
+        |> Some)
+    |> Option.defaultValue Seq.empty
