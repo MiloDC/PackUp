@@ -1,6 +1,7 @@
-﻿module PackUp.Program
+﻿module PackUp.Program.Program
 
-open Pack
+open PackUp
+open PackUp.Pack
 
 let [<Literal>] DefaultCaseSensitivty = 0
 

@@ -10,7 +10,6 @@
     <Compile Include="Compression.fs" />
     <Compile Include="Platform.fs" />
     <Compile Include="Pack.fs" />
-    <Compile Include="Json.fs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,11 +1,12 @@
 ﻿[<RequireQualifiedAccess>]
-module PackUp.Json
+module PackUp.Program.Json
 
 open System
 open System.Collections.Generic
 open Newtonsoft.Json.Linq
-open Platform
-open Pack
+open PackUp
+open PackUp.Platform
+open PackUp.Pack
 
 let private (|JsonString|_|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.String) then
@@ -98,12 +99,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
         else IO.DirectoryInfo (IO.Directory.GetCurrentDirectory ())
 
     {
-        version =
-            match json with
-            | Some j -> match j.["version"] with JsonString s -> s | _ -> Core.Version
-            | _ -> Core.Version
-
-        rootDir = rootDir'
+        rootDir = rootDir'.FullName
 
         globalFiles =
             match json with
@@ -135,11 +131,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
                             | JsonString s when s = "tarzip" -> Compression.TarZip password
                             | _ -> Compression.None
 
-                        sourceDir =
-                            sprintf "%s%s%c%s%c"
-                                (packUpDirOf rootDir'.FullName) platform dirSep tgtName dirSep
-
-                        targetPath = sprintf "%s%c%s" rootDir'.FullName dirSep tgtName
+                        targetPath = sprintf "%s/%s" (normalizePath rootDir'.FullName) tgtName
 
                         files = filesOf filenameCaseSens jObj.["files"]
 

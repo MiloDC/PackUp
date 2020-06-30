@@ -5,15 +5,14 @@ open System.Text.RegularExpressions
 
 let [<Literal>] Version = "1.0.0"
 
+/// (Reg. expr.  of directory relative to Pack.rootDir, reg. exprs. of file names.)
+type DirMap = (Regex * Regex seq) list
+/// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string).
+type EditMap = string * (Regex * string) seq
+
 let internal dirSep = System.IO.Path.DirectorySeparatorChar
 
-let internal (|NativeFullPath|) = System.IO.Path.GetFullPath
-
-let packUpDirOf (NativeFullPath rootPath) =
-    sprintf "%s%c__PACKUP__%c" (rootPath.TrimEnd dirSep) dirSep dirSep
-
-type DirMap = (Regex * Regex seq) list          // (directory, files)
-type EditMap = string * (Regex * string) seq    // file_path, (regex, replacement)
+let internal (|NativeFullPath|) path = (System.IO.Path.GetFullPath path).TrimEnd dirSep
 
 let internal bprintDirMap sb indentation name dirMap =
     if List.length dirMap > 0 then
@@ -33,6 +32,8 @@ let internal bprintEditMaps sb indentation editMaps =
             reRepls |> Seq.iter (fun (re, repl) ->
                 Printf.bprintf sb "%s\t%O -> \"%s\"\n" indent re repl))
 
+let normalizePath (NativeFullPath path) = path.Replace (dirSep, '/')
+
 [<RequireQualifiedAccess>]
 module RE =
     let filePath = Regex "(.+/)([^/]+$)"
@@ -41,7 +42,7 @@ module RE =
     let regexOf prepString isCaseSensitive (s : string) =
         Regex (
             if prepString then
-                (s.Replace(".", "\\.").Replace ("*", ".*")
+                (s.Replace(".", "\\.").Replace("*", ".*").Replace ("?", ".")
                 |> sprintf "^%s$").Replace (".*/$", ".*$")
             else s
             , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)

@@ -5,9 +5,10 @@ open Compression
 type Platform =
     {
         compression     : Compression
-        sourceDir       : string
+        /// Output file name of the compressed file, minus the extension.
         targetPath      : string
-        files           : DirMap * DirMap       // includes, excludes
+        /// Includes, exlcudes.
+        files           : DirMap * DirMap
         edits           : EditMap list
     }
 
@@ -20,8 +21,6 @@ type Platform =
         | Zip password -> Printf.bprintf sb "zip (password = \"%s\")\n" password
         | TarZip password -> Printf.bprintf sb "tarzip (password = \"%s\")\n" password
         | None -> Printf.bprintf sb "none\n"
-
-        Printf.bprintf sb "%ssourceDir = \"%s\"\n" indentStr this.sourceDir
 
         Printf.bprintf sb "%stargetPath = \"%s\"\n" indentStr this.targetPath
 
