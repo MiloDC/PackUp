@@ -122,7 +122,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
                     | JsonString s when s = "tar" -> Compression.Tar
                     | JsonString s when s = "zip" -> Compression.Zip password
                     | JsonString s when s = "tarzip" -> Compression.TarZip password
-                    | _ -> Compression.None
+                    | _ -> Compression.NoCompression
 
                 targetPath = sprintf "%s/%s" (normalizePath rootDir'.FullName) tgtName
 

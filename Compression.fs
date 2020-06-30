@@ -7,7 +7,7 @@ type Compression =
     | Tar
     | Zip of password : string
     | TarZip of password : string
-    | None
+    | NoCompression
 
 let rec internal compress (NativeFullPath srcPath) targetPath = function
     | Tar ->
@@ -49,4 +49,4 @@ let rec internal compress (NativeFullPath srcPath) targetPath = function
         File.Delete tarFilePath
 
         zipFilePath
-    | None -> null
+    | NoCompression -> null

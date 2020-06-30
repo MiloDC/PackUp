@@ -53,7 +53,7 @@ type Pack =
         | Tar -> Printf.bprintf sb "tar\n"
         | Zip password -> Printf.bprintf sb "zip (password = \"%s\")\n" password
         | TarZip password -> Printf.bprintf sb "tarzip (password = \"%s\")\n" password
-        | None -> Printf.bprintf sb "none\n"
+        | NoCompression -> Printf.bprintf sb "none\n"
 
         Printf.bprintf sb "targetPath = \"%s\"\n" this.targetPath
 

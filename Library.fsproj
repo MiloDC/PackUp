@@ -8,7 +8,6 @@
   <ItemGroup>
     <Compile Include="Core.fs" />
     <Compile Include="Compression.fs" />
-    <Compile Include="Platform.fs" />
     <Compile Include="Pack.fs" />
   </ItemGroup>
 
