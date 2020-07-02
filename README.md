@@ -9,17 +9,25 @@ PackUp is a .NET Core archival library, coded in F# and designed for use primari
 The **zip** and **tarzip** formats support optional password protection.
 
 ## Usage
-The PackUp library operates on the `Pack` record type:
+The PackUp library operates on `Pack` records:
 ```
 type Pack =
     {
+        description     : string
         rootDir         : string
-        globalFiles     : DirMap * DirMap
-        globalEdits     : EditMap list
-        platforms       : (string * Platform) seq
+        compression     : Compression
+        targetPath      : string
+        files           : DirMap * DirMap
+        edits           : EditMap list
     }
 ```
 `rootDir` is the full path to the root directory of the archive.
+
+`targetPath` is a full path that informs PackUp where to write the generated archive file, minus the extension (which will be determined by PackUp).
+
+`files` is a dual `DirMap` of files to include and exclude for archival.  A `DirMap` is a list of tuples in the format (`Regex`, `Regex sequence`), whereby the first value represents a directory, 
+
+`edits`
 
 
 ## Apps
@@ -88,13 +96,13 @@ Command options are:
 }
 ```
 ##### Notes on the JSON configuration file:
-- `version` indicates the minimum version of PackUp required for the proper interpretation of the configuration.
-- File paths are relative to the directory containing the JSON configuration file.  Wildcard notations `*` (zero or more of any characters) and `?` (any single character) are permitted.
-- File paths must have at least one forward slash (`/`).  For files in the same directory as the configuration file, use `./filename`.
-- Files matching paths prepended with `-` will not be archived.
-- The syntax for `edits` and `global_edits` values is a collection of entries in the format: `"FILE_PATH" : [ "REGEX_REPLACEMENT", "..." ]`. Edits to a file are made on a per-line basis.  The first character in the `REGEX_REPLACEMENT` defines the delimiter between the regular expression and the string that will serve as a replacement in the event of a match. For example, for the  entry `"templates/config.txt" : [ "|^password=.*|password=PASSWORD" ]`, a regular expression match on `^password=.*` will be replaced with `password=PASSWORD` for every line in any file wth a path matching `templates/config.txt`.
 - The `global_files` and `global_edits` collections are processed for all platforms.
-- `target_name` defines the file name of the target archive file.  This file will be written to the directory conatining the JSON configuration file, with the appropriate extension (`.zip` or `.tar.gz`) applied.
+- File paths are relative to the directory containing the JSON configuration file.
+- File paths must _not_ be in regular expression syntax.  The standard wildcard notations `*` (zero or more of any characters) and `?` (any single character) are permitted.
+- File paths must have at least one forward slash (`/`).  For files in the same directory as the configuration file, use `./filename`.
+- Files matching paths prepended with `-` are categorized in the exclusion list of dual `DirMap` values (see **Usage**, above).
+- The syntax for `edits` and `global_edits` values is a collection of entries in the format: `"FILE_PATH" : [ "REGEX_REPLACEMENT", "..." ]`. Edits to a file are made on a per-line basis.  The first character in the `REGEX_REPLACEMENT` defines the delimiter between the regular expression and the string that will serve as a replacement in the event of a match. For example, for the  entry `"templates/config.txt" : [ "|^password=.*|password=PASSWORD" ]`, a regular expression match on `^password=.*` will be replaced with `password=PASSWORD` for every line in any file wth a path matching `templates/config.txt`.
+- `target_name` defines the file name of the target archive file.  This file will be written to the directory containing the JSON configuration file, with the appropriate extension (`.zip` or `.tar.gz`) applied.
 
 ## Dependencies
 PackUp employs the following third-party libraries:

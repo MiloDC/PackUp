@@ -1,12 +1,12 @@
-﻿module PackUp.Program.Program
+﻿module PackUp.Application.Console
 
 open System.IO
 open PackUp
 open PackUp.Pack
 
-let [<Literal>] DefaultCaseSensitivty = 0
-
+let [<Literal>] private DefaultCaseSensitivty = 0
 let [<Literal>] private progBarLen = 50
+
 let private progressBar = function
     | Incomplete (platform, pct) ->
         (String.replicate (int (single progBarLen * pct)) "#").PadRight (progBarLen, '_')

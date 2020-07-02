@@ -4,28 +4,8 @@ open System.IO
 open System.Text.RegularExpressions
 open Compression
 
-/// (Reg. expr.  of directory relative to Pack.rootDir, reg. exprs. of file names.)
-type DirMap = (Regex * Regex seq) list
 /// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string).
 type EditMap = string * (Regex * string) seq
-
-let private bprintDirMap sb indentation name dirMap =
-    if List.length dirMap > 0 then
-        let indent = String.replicate indentation "\t"
-        Printf.bprintf sb "%s%s =\n" indent name
-        dirMap
-        |> List.iter (fun (dir, files) ->
-            Printf.bprintf sb "%s\t%O =\n" indent dir
-            files |> Seq.iter (Printf.bprintf sb "%s\t\t%O\n" indent))
-
-let private bprintEditMaps sb indentation editMaps =
-    if Seq.length editMaps > 0 then
-        let indent = String.replicate indentation "\t"
-        editMaps
-        |> Seq.iter (fun (filePath, reRepls) ->
-            Printf.bprintf sb "%s\"%s\" =\n" indent filePath
-            reRepls |> Seq.iter (fun (re, repl) ->
-                Printf.bprintf sb "%s\t%O -> \"%s\"\n" indent re repl))
 
 type Pack =
     {
@@ -36,8 +16,9 @@ type Pack =
         compression     : Compression
         /// Output file name of the compressed file, minus the extension.
         targetPath      : string
-        /// Includes, exlcudes.
-        files           : DirMap * DirMap
+        /// Include and exlcude paths, all relative to rootDir. All regular expressions
+        /// must begin with either "^\./" or "^.*".
+        files           : Regex list * Regex list
         edits           : EditMap list
     }
 
@@ -59,22 +40,30 @@ type Pack =
 
         let includes, excludes = this.files
         if includes.Length > 0 then
-            Printf.bprintf sb "files =\n"
-            bprintDirMap sb 1 "includes" includes
+            Printf.bprintf sb "files =\n\tincludes =\n"
+            includes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
         if excludes.Length > 0 then
             if 0 = includes.Length then
                 Printf.bprintf sb "files =\n"
-            bprintDirMap sb 1 "excludes" excludes
+            Printf.bprintf sb "\texcludes =\n"
+            excludes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
 
         if this.edits.Length > 0 then
             Printf.bprintf sb "edits =\n"
-            bprintEditMaps sb 1 this.edits
+            this.edits
+            |> Seq.iter (fun (filePath, reRepls) ->
+                Printf.bprintf sb "\t\"%s\" =\n" filePath
+                reRepls |> Seq.iter (fun (re, repl) ->
+                    Printf.bprintf sb "\t\t%O -> \"%s\"\n" re repl))
 
         sb.ToString ()
 
 type Progress =
     | Incomplete of platform : string * percent : single
     | Complete of platform : string * targetPath : string
+
+let private reDotSlash = Regex @"^\./"
+let private isRegexMatch str (re : Regex) = re.IsMatch str
 
 let pack (progressCallback : (Progress -> unit) option) pack =
     let rootDir = pack.rootDir |> normalizePath |> sprintf "%s/"
@@ -83,69 +72,57 @@ let pack (progressCallback : (Progress -> unit) option) pack =
         packUpRootDir <-
             sprintf "%s%s%c"
                 (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep
-    let srcFiles =
-        DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles ("*.*", SearchOption.AllDirectories)
-        |> Array.map (fun fileInfo ->
-            let dir =
-                (fileInfo.DirectoryName |> normalizePath |> sprintf "%s/").Replace (rootDir, "")
-            (if System.String.IsNullOrEmpty dir then "./" else dir), fileInfo.Name)
 
-    // 1) Copy files
+    // Copy files.
     let platformDir =
         sprintf "%s%s%c%s%c"
             packUpRootDir pack.description dirSep (Path.GetFileName pack.targetPath) dirSep
     if Directory.Exists platformDir then Directory.Delete (platformDir, true)
-    Directory.CreateDirectory platformDir |> ignore
+//    Directory.CreateDirectory platformDir |> ignore
     let includes, excludes = pack.files
     let copyFiles =
-        srcFiles
-        |> Array.filter (fun (dir, fileName) ->
-            excludes
-            |> List.exists (fun (reDir, reFileNames) ->
-                reDir.IsMatch dir && reFileNames |> Seq.exists (fun re -> re.IsMatch fileName))
-            |> not)
-        |> Array.choose (fun (dir, fileName) ->
-            if includes |> List.exists (fun (reDir, reFileNames) ->
-                reDir.IsMatch dir && reFileNames |> Seq.exists (fun re -> re.IsMatch fileName))
-            then
+        DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles ("*.*", SearchOption.AllDirectories)
+        |> Array.choose (fun fileInfo ->
+            let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
+            let isMatch = isRegexMatch relativeFilePath
+            if (excludes |> List.exists isMatch |> not) && (includes |> List.exists isMatch) then
+                let relFilePath = reDotSlash.Replace (relativeFilePath, "")
                 Some (
-                    (sprintf "%s%s%s" rootDir dir fileName) |> Path.GetFullPath,
-                    (sprintf "%s/%s%s" platformDir dir fileName) |> Path.GetFullPath)
+                    (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath,
+                    (sprintf "%s%s" platformDir relFilePath) |> Path.GetFullPath)
             else None)
     let copyCount = Seq.length copyFiles |> single
     copyFiles
     |> Array.iteri (fun i (srcFile, destFile) ->
         let destDir = Path.GetDirectoryName destFile
         if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
-        File.Copy (srcFile, destFile, true)
-        progressCallback |> Option.iter (fun fn ->
-            fn (Incomplete (pack.description, 0.975f * (single i / copyCount)))))
 
-    // 2) Edit files
-    pack.edits
-    |> List.choose (fun (filePath, editMap) ->
-        let fullFilePath =
-            (sprintf "%s/%s" platformDir filePath |> normalizePath).Replace ("/./", "/")
-        if File.Exists fullFilePath then Some (fullFilePath, editMap) else None)
-    |> List.iter (fun ((NativeFullPath filePath), edits) ->
-        let tmpFilePath = Path.GetTempFileName ()
-        let writer = tmpFilePath |> File.CreateText
-        let reader = File.OpenText filePath
-        while not reader.EndOfStream do
-            edits
-            |> Seq.fold (fun line (re, repl) -> re.Replace (line, repl)) (reader.ReadLine ())
-            |> writer.WriteLine
-        reader.Close ()
-        writer.Close ()
-        File.Move (tmpFilePath, filePath, true))
-    progressCallback |> Option.iter (fun fn -> fn (Incomplete (pack.description, 0.99f)))
+        pack.edits
+        |> List.tryPick (fun (filePath, editMap) ->
+            let fullFilePath =
+                (sprintf "%s/%s" platformDir filePath |> normalizePath).Replace ("/./", "/")
+                |> Path.GetFullPath
+            if fullFilePath.Equals destFile then Some editMap else None)
+        |> Option.bind (fun editMap ->
+            let writer = File.CreateText destFile
+            let reader = File.OpenText srcFile
+            while not reader.EndOfStream do
+                editMap
+                |> Seq.fold (fun line (re, repl) -> re.Replace (line, repl)) (reader.ReadLine ())
+                |> writer.WriteLine
+            reader.Close ()
+            writer.Close () |> Some)
+        |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
 
-    // 3) Compress files
+        progressCallback |> Option.iter (fun f ->
+            f (Incomplete (pack.description, 0.99f * (single i / copyCount)))))
+
+    // Compress files.
     let targetFilePath =
         pack.compression
         |> Compression.compress
             (sprintf "%s%c" (DirectoryInfo platformDir).Parent.FullName dirSep)
             pack.targetPath
-    progressCallback |> Option.iter (fun fn -> fn (Complete (pack.description, targetFilePath)))
+    progressCallback |> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
 
     if Directory.Exists packUpRootDir then Directory.Delete (packUpRootDir, true)

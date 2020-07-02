@@ -1,8 +1,8 @@
 ﻿[<RequireQualifiedAccess>]
-module PackUp.Program.Json
+module PackUp.Application.Json
 
 open System
-open System.Collections.Generic
+open System.Text.RegularExpressions
 open Newtonsoft.Json.Linq
 open PackUp
 open PackUp.Pack
@@ -38,28 +38,30 @@ let private (|JsonMapMap|) (jToken : JToken) =
     else Seq.empty
     |> dict
 
-let private filesOf areFileNamesCaseSensitive (JsonStringArray files) =
+[<RequireQualifiedAccess>]
+module private RE =
+    let private dotSlashOrAsteriskStart = Regex @"^\./|^\*"
+    let filePath = Regex "^[-]*.+"
+    let filePathOptions = Regex "^[-]+"
+
+    let regexOf prepareString isCaseSensitive (s : string) =
+        Regex (
+            if prepareString then
+                (s.Replace(".", @"\.").Replace("*", ".*").Replace ("?", ".")
+                |> sprintf "^%s%s$" (if dotSlashOrAsteriskStart.IsMatch s then "" else @"\./"))
+                    .Replace (".*/$", ".*$")
+            else s
+            , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)
+
+let private filesOf caseSensitive (JsonStringArray files) =
     files
-    |> Seq.choose (fun filePath ->
-        match (RE.filePath.Match filePath).Groups with
-        | g when 3 = g.Count -> Some (g.[1].Value, g.[2].Value)
-        | _ -> None)
-    |> Seq.fold (fun (dirMap : Dictionary<string, string list>) (dir, fileName) ->
-        match dirMap.TryGetValue dir with
-        | true, fileNames -> dirMap.[dir] <- fileNames @ [ fileName ]
-        | _ -> dirMap.[dir] <- [ fileName ]
-        dirMap)
-        (Dictionary<string, string list> ())
-    |> Seq.fold (fun (incl, excl) (KeyValue (dir, fileNames)) ->
-        let entry =
-            [
-                RE.filePathOptions.Replace (dir, "") |> RE.regexOf true true,
-                fileNames |> Seq.map (fun f -> RE.regexOf true areFileNamesCaseSensitive f)
-            ]
-        if (RE.filePathOptions.Match dir).Value.Contains '-' then
-            incl, excl @ entry
+    |> Seq.filter RE.filePath.IsMatch
+    |> Seq.fold (fun (incl, excl) filePath ->
+        let re = RE.filePathOptions.Replace (filePath, "") |> RE.regexOf true caseSensitive
+        if (RE.filePathOptions.Match filePath).Value.Contains '-' then
+            incl, excl @ [ re ]
         else
-            incl @ entry, excl)
+            incl @ [ re ], excl)
         ([], [])
 
 let private editsOf caseSensitive (JsonArrayMap map) =
