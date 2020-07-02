@@ -17,7 +17,7 @@ type Pack =
         rootDir         : string
         compression     : Compression
         targetPath      : string
-        files           : DirMap * DirMap
+        files           : Regex list * Regex list * Regex list
         edits           : EditMap list
     }
 ```
@@ -25,10 +25,9 @@ type Pack =
 
 `targetPath` is a full path that informs PackUp where to write the generated archive file, minus the extension (which will be determined by PackUp).
 
-`files` is a dual `DirMap` of files to include and exclude for archival.  A `DirMap` is a list of tuples in the format (`Regex`, `Regex sequence`), whereby the first value represents a directory, 
+`files` is a tuple of regular expressions corresponding to whitelist, blacklist, and include items.  Matches are sought on all files underneath `rootDir`; if a file matches a regular expression on the whitelist, or if it matches a regular expression on the include list without also matching anything on the blacklist, then it will be added to the packed output.
 
-`edits`
-
+`edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path relative to `Pack.rootDir`, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.
 
 ## Apps
 The PackUp project includes a console application that reads a JSON configuration file.

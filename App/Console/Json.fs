@@ -41,8 +41,8 @@ let private (|JsonMapMap|) (jToken : JToken) =
 [<RequireQualifiedAccess>]
 module private RE =
     let private dotSlashOrAsteriskStart = Regex @"^\./|^\*"
-    let filePath = Regex "^[-]*.+"
-    let filePathOptions = Regex "^[-]+"
+    let filePath = Regex @"^[+-]*.+"
+    let filePathOptions = Regex @"^[+-]+"
 
     let regexOf prepareString isCaseSensitive (s : string) =
         Regex (
@@ -56,13 +56,16 @@ module private RE =
 let private filesOf caseSensitive (JsonStringArray files) =
     files
     |> Seq.filter RE.filePath.IsMatch
-    |> Seq.fold (fun (incl, excl) filePath ->
+    |> Seq.fold (fun (wl, bl, incl) filePath ->
         let re = RE.filePathOptions.Replace (filePath, "") |> RE.regexOf true caseSensitive
-        if (RE.filePathOptions.Match filePath).Value.Contains '-' then
-            incl, excl @ [ re ]
+        let opts = (RE.filePathOptions.Match filePath).Value
+        if opts.Contains '+' then
+            wl @ [ re ], bl, incl
+        elif opts.Contains '-' then
+            wl, bl @ [ re ], incl
         else
-            incl @ [ re ], excl)
-        ([], [])
+            wl, bl, incl @ [ re ])
+        ([], [], [])
 
 let private editsOf caseSensitive (JsonArrayMap map) =
     map
@@ -90,10 +93,10 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
 
     let filenameCaseSens, editCaseSens = (caseSensitivity &&& 1) > 0, (caseSensitivity &&& 2) > 0
 
-    let globalFiles =
+    let globalWL, globalBL, globalIncl =
         match json with
         | Some j -> filesOf filenameCaseSens j.["global_files"]
-        | _ -> [], []
+        | _ -> [], [], []
 
     let globalEdits =
         match json with
@@ -129,8 +132,8 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
                 targetPath = sprintf "%s/%s" (normalizePath rootDir'.FullName) tgtName
 
                 files =
-                    let incl, excl = filesOf filenameCaseSens jObj.["files"]
-                    fst globalFiles @ incl, snd globalFiles @ excl
+                    let wl, bl, incl = filesOf filenameCaseSens jObj.["files"]
+                    globalWL @ wl, globalBL @ bl, globalIncl @ incl
 
                 edits = globalEdits @ editsOf editCaseSens jObj.["edits"]
             })

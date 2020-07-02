@@ -12,13 +12,12 @@ type Pack =
         description     : string
         /// The root of all of the relative file paths in files and edits.
         rootDir         : string
-        /// Includes, excludes.
         compression     : Compression
         /// Output file name of the compressed file, minus the extension.
         targetPath      : string
-        /// Include and exlcude paths, all relative to rootDir. All regular expressions
-        /// must begin with either "^\./" or "^.*".
-        files           : Regex list * Regex list
+        /// Whitelist, blacklist, and inlcude paths, all relative to rootDir.
+        /// All regular expressions must begin with either "^\./" or "^.*".
+        files           : Regex list * Regex list * Regex list
         edits           : EditMap list
     }
 
@@ -38,15 +37,20 @@ type Pack =
 
         Printf.bprintf sb "targetPath = \"%s\"\n" this.targetPath
 
-        let includes, excludes = this.files
-        if includes.Length > 0 then
-            Printf.bprintf sb "files =\n\tincludes =\n"
-            includes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
-        if excludes.Length > 0 then
-            if 0 = includes.Length then
+        let whitelist, blacklist, includes = this.files
+        if whitelist.Length > 0 then
+            Printf.bprintf sb "files =\n\twhitelist =\n"
+            whitelist |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
+        if blacklist.Length > 0 then
+            if 0 = whitelist.Length then
                 Printf.bprintf sb "files =\n"
-            Printf.bprintf sb "\texcludes =\n"
-            excludes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
+            Printf.bprintf sb "\tblacklist =\n"
+            blacklist |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
+        if includes.Length > 0 then
+            if 0 = whitelist.Length &&  0 = blacklist.Length then
+                Printf.bprintf sb "files =\n"
+            Printf.bprintf sb "\tincludes =\n"
+            includes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
 
         if this.edits.Length > 0 then
             Printf.bprintf sb "edits =\n"
@@ -78,14 +82,16 @@ let pack (progressCallback : (Progress -> unit) option) pack =
         sprintf "%s%s%c%s%c"
             packUpRootDir pack.description dirSep (Path.GetFileName pack.targetPath) dirSep
     if Directory.Exists platformDir then Directory.Delete (platformDir, true)
-//    Directory.CreateDirectory platformDir |> ignore
-    let includes, excludes = pack.files
+    let whitelist, blacklist, includes = pack.files
     let copyFiles =
         DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles ("*.*", SearchOption.AllDirectories)
         |> Array.choose (fun fileInfo ->
             let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
             let isMatch = isRegexMatch relativeFilePath
-            if (excludes |> List.exists isMatch |> not) && (includes |> List.exists isMatch) then
+            if
+                (whitelist |> List.exists isMatch)
+                || ((blacklist |> List.exists isMatch |> not) && (includes |> List.exists isMatch))
+            then
                 let relFilePath = reDotSlash.Replace (relativeFilePath, "")
                 Some (
                     (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath,
