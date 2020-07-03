@@ -23,11 +23,22 @@ type Pack =
 ```
 `rootDir` is the full path to the root directory of the archive.
 
-`targetPath` is a full path that informs PackUp where to write the generated archive file, minus the extension (which will be determined by PackUp).
+The `compression` record type is:
+```
+type Compression =
+    | Tar
+    | Zip of password : string
+    | TarZip of password : string
+    | NoCompression
+```
+
+`targetPath` is a full path that informs PackUp where to write the generated archive file, minus the file extension (which will be determined by PackUp).
 
 `files` is a tuple of regular expressions corresponding to whitelist, blacklist, and include items.  Matches are sought on all files underneath `rootDir`; if a file matches a regular expression on the whitelist, or if it matches a regular expression on the include list without also matching anything on the blacklist, then it will be added to the packed output.
 
-`edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path relative to `Pack.rootDir`, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.
+`edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.
+
+**Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
 
 ## Apps
 The PackUp project includes a console application that reads a JSON configuration file.

@@ -16,7 +16,6 @@ type Pack =
         /// Output file name of the compressed file, minus the extension.
         targetPath      : string
         /// Whitelist, blacklist, and inlcude paths, all relative to rootDir.
-        /// All regular expressions must begin with either "^\./" or "^.*".
         files           : Regex list * Regex list * Regex list
         edits           : EditMap list
     }
@@ -69,7 +68,16 @@ type Progress =
 let private reDotSlash = Regex @"^\./"
 let private isRegexMatch str (re : Regex) = re.IsMatch str
 
-let pack (progressCallback : (Progress -> unit) option) pack =
+let private invalidPathChars =
+    [| '*' |]
+    |> Array.append (Path.GetInvalidPathChars ()) |> Array.distinct
+let private validatePath path =
+    invalidPathChars
+    |> Array.fold (fun (dir : string) c -> dir.Replace (string c, ""))
+        (if not <| System.String.IsNullOrWhiteSpace path then path else "_")
+    |> fun s -> s.Replace (sprintf "%c%c" dirSep dirSep, sprintf "%c_%c" dirSep dirSep)
+
+let pack progressCallback pack =
     let rootDir = pack.rootDir |> normalizePath |> sprintf "%s/"
     let mutable packUpRootDir = null
     while isNull packUpRootDir || Directory.Exists packUpRootDir do
@@ -81,6 +89,7 @@ let pack (progressCallback : (Progress -> unit) option) pack =
     let platformDir =
         sprintf "%s%s%c%s%c"
             packUpRootDir pack.description dirSep (Path.GetFileName pack.targetPath) dirSep
+        |> validatePath
     if Directory.Exists platformDir then Directory.Delete (platformDir, true)
     let whitelist, blacklist, includes = pack.files
     let copyFiles =
