@@ -23,7 +23,7 @@ type Pack =
 ```
 `rootDir` is the full path to the root directory of the archive.
 
-The `compression` record type is:
+`compression` is a discriminated union thusly defined:
 ```
 type Compression =
     | Tar
@@ -34,11 +34,27 @@ type Compression =
 
 `targetPath` is a full path that informs PackUp where to write the generated archive file, minus the file extension (which will be determined by PackUp).
 
-`files` is a tuple of regular expressions corresponding to whitelist, blacklist, and include items.  Matches are sought on all files underneath `rootDir`; if a file matches a regular expression on the whitelist, or if it matches a regular expression on the include list without also matching anything on the blacklist, then it will be added to the packed output.
+`files` is a tuple of regular expressions corresponding to whitelist, blacklist, and include items, respectively.  Matches are sought on all files underneath `rootDir`; if a file matches a regular expression on the whitelist, or if it matches a regular expression on the include list without also matching anything on the blacklist, then it will be added to the packed output.
 
-`edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.
+`edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.  For example:
+
+`"templates/config.txt", [ (^username=.*, "username=USERNAME"); (^password=.*, "password=PASSWORD") ]`
+
+This would result in the replacement of any lines matches the given regular expressions with their corresponding strings, in the file `templates/config.txt`.
 
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
+
+To execute a packing operation on a `Pack` record, call `PackUp.Pack.pack`:
+
+`pack progressCallback pack`
+
+`progressCallback` is an option of type `Progress -> unit` that is called regularly as packing takes place.  The `Progress` type is a discriminated union:
+```
+type Progress =
+    | Incomplete of string * single
+    | Complete of string * string
+```
+The first `string` value in both cases is simply `Pack.description`.  The `single` value of `Incomplete` will be a value ranging `0.f` to `0.99f`.  `Complete`, the second `string` of which is the full path of the target asset, is passed at the end of the packing operation.
 
 ## Apps
 The PackUp project includes a console application that reads a JSON configuration file.
@@ -56,16 +72,16 @@ Command options are:
 #### Sample JSON configuration file:
 ```
 {
-	"version" : "1.0.0",
 	"global_files" : [
-		"*/*.hpp",
-		"*/*.cpp",
-		"./LICENSE",
-		"./README",
+		"*.hpp",
+		"*.cpp",
+		"*/LICENSE",
+		"*/README",
 		"docs/changelist.txt",
-		"-*/.vs/*/*",
-		"-.git/*/*",
+		"-*/.vs/*",
+		"-.git/*",
 		"-*/bin/*",
+		"-*/.obj/*"
 		"-*/obj/*"
 	],
 	"global_edits" : {
@@ -77,7 +93,7 @@ Command options are:
 	"platforms" : {
 		"linux" : {
 			"compression" : "tar",
-			"target_name" : "my-project-linux",
+			"target_name" : "my-linux-project",
 			"files" : [
 				"*/Makefile",
 				"-Service/*"
@@ -94,9 +110,11 @@ Command options are:
 		},
 		"windows" : {
 			"compression" : "zip",
-			"target_name" : "my_project_windows",
+			"target_name" : "my_windows_project",
 			"password" : "P@$$wd",
 			"files" : [
+				"+*/3rdPartyLibrary/*/bin/*.dll",
+				"*/3rdPartyLibrary/*/lib/*.lib",
 				"*/*.sln",
 				"*/*.vcxproj",
 				"-*/*Daemon/*"
@@ -107,11 +125,8 @@ Command options are:
 ```
 ##### Notes on the JSON configuration file:
 - The `global_files` and `global_edits` collections are processed for all platforms.
-- File paths are relative to the directory containing the JSON configuration file.
 - File paths must _not_ be in regular expression syntax.  The standard wildcard notations `*` (zero or more of any characters) and `?` (any single character) are permitted.
-- File paths must have at least one forward slash (`/`).  For files in the same directory as the configuration file, use `./filename`.
-- Files matching paths prepended with `-` are categorized in the exclusion list of dual `DirMap` values (see **Usage**, above).
-- The syntax for `edits` and `global_edits` values is a collection of entries in the format: `"FILE_PATH" : [ "REGEX_REPLACEMENT", "..." ]`. Edits to a file are made on a per-line basis.  The first character in the `REGEX_REPLACEMENT` defines the delimiter between the regular expression and the string that will serve as a replacement in the event of a match. For example, for the  entry `"templates/config.txt" : [ "|^password=.*|password=PASSWORD" ]`, a regular expression match on `^password=.*` will be replaced with `password=PASSWORD` for every line in any file wth a path matching `templates/config.txt`.
+- Files matching paths prepended with `+` are categorized as whitelist items, while `-` corresponds to the blacklist.  (See **Usage**, above.)
 - `target_name` defines the file name of the target archive file.  This file will be written to the directory containing the JSON configuration file, with the appropriate extension (`.zip` or `.tar.gz`) applied.
 
 ## Dependencies
