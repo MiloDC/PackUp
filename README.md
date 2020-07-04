@@ -62,7 +62,9 @@ The PackUp project includes a console application that reads a JSON configuratio
 
 The command syntax for this console app is:
 
-**`PackUp [OPTIONS] CONFIG_FILE`**
+**`PackUp [OPTIONS] [CONFIG_FILE]`**
+
+`CONFIG_FILE` defaults to `packup.json`.
 
 Command options are:
 
@@ -97,7 +99,7 @@ Command options are:
 			"target_name" : "my-linux-project",
 			"files" : [
 				"*/Makefile",
-				"-Service/*"
+				"-*/*Service/*"
 			],
 			"edits" : {
 				"*/FileSystemDaemon/options.cfg" : [
@@ -116,8 +118,8 @@ Command options are:
 			"files" : [
 				"+*/3rdPartyLibrary/*/bin/*.dll",
 				"*/3rdPartyLibrary/*/lib/*.lib",
-				"*/*.sln",
-				"*/*.vcxproj",
+				"*.sln",
+				"*.vcxproj",
 				"-*/*Daemon/*"
 			]
 		}
