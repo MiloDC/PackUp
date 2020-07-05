@@ -79,7 +79,7 @@ let private editsOf caseSensitive (JsonArrayMap map) =
         if Seq.length reRepls > 0 then Some (filePath, reRepls) else None)
     |> Seq.toList
 
-let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
+let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
     let json =
         try
             IO.File.ReadAllText jsonFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
@@ -103,7 +103,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
         | Some j -> editsOf editCaseSens j.["global_edits"]
         | _ -> []
 
-    let rootDir' =
+    let rootDirectory =
         if json.IsSome then (IO.FileInfo jsonFilePath).Directory
         else IO.DirectoryInfo (IO.Directory.GetCurrentDirectory ())
 
@@ -111,8 +111,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
     |> Option.bind (fun j ->
         let (JsonMapMap map) = j.["platforms"]
         map
-        |> Seq.filter (fun (KeyValue (platform, jObj)) ->
-            platforms'.IsEmpty || platforms'.Contains platform)
+        |> Seq.filter (fun (KeyValue (p, _)) -> platforms.IsEmpty || platforms.Contains p)
         |> Seq.map (fun (KeyValue (platform, jObj)) ->
             let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> platform
             let password = match jObj.["password"] with JsonString s -> s | _ -> null
@@ -120,7 +119,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
             {
                 description = platform
 
-                rootDir = rootDir'.FullName
+                rootDir = rootDirectory.FullName
 
                 compression =
                     match jObj.["compression"] with
@@ -129,7 +128,7 @@ let readFile (platforms' : Set<string>) caseSensitivity jsonFilePath =
                     | JsonString s when s = "tarzip" -> Compression.TarZip password
                     | _ -> Compression.NoCompression
 
-                targetPath = sprintf "%s/%s" (normalizePath rootDir'.FullName) tgtName
+                targetPath = sprintf "%s/%s" (normalizePath rootDirectory.FullName) tgtName
 
                 files =
                     let wl, bl, incl = filesOf filenameCaseSens jObj.["files"]

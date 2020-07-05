@@ -35,7 +35,7 @@ let private (|ProcessArgs|) (args : string array) =
             | "-c" -> (res - 1, file, plats, snd (System.Int32.TryParse arg), action), ""
             | _ -> (res + 1, file, plats, caseSens, action), opt)
         ((FileResultBit, "", Set.empty, DefaultCaseSensitivty, Seq.iter (pack (Some progressBar)))
-            ,"")
+            , "")
     |> fst
 
 [<EntryPoint>]

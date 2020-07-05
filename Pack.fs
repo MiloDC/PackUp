@@ -46,7 +46,7 @@ type Pack =
             Printf.bprintf sb "\tblacklist =\n"
             blacklist |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
         if includes.Length > 0 then
-            if 0 = whitelist.Length &&  0 = blacklist.Length then
+            if 0 = whitelist.Length && 0 = blacklist.Length then
                 Printf.bprintf sb "files =\n"
             Printf.bprintf sb "\tincludes =\n"
             includes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
@@ -103,8 +103,8 @@ let pack progressCallback pack =
             then
                 let relFilePath = reDotSlash.Replace (relativeFilePath, "")
                 Some (
-                    (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath,
-                    (sprintf "%s%s" platformDir relFilePath) |> Path.GetFullPath)
+                    (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath
+                    , (sprintf "%s%s" platformDir relFilePath) |> Path.GetFullPath)
             else None)
     let copyCount = Seq.length copyFiles |> single
     copyFiles

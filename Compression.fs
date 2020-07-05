@@ -38,8 +38,8 @@ let rec internal compress (NativeFullPath srcPath) targetPath = function
 
         let isDirSrcPath = Directory.Exists srcPath
         let sourceDirctory, fileFilter =
-            (if isDirSrcPath then srcPath else Path.GetDirectoryName srcPath),
-            if isDirSrcPath then ".+" else Path.GetFileName srcPath
+            (if isDirSrcPath then srcPath else Path.GetDirectoryName srcPath)
+            , if isDirSrcPath then ".+" else Path.GetFileName srcPath
         zip.CreateZip (zipFilePath, sourceDirctory, isDirSrcPath, fileFilter)
 
         zipFilePath

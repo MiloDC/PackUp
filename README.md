@@ -39,9 +39,9 @@ Passing a value of `NoCompression` currently yields undefined behavior, and is t
 
 `edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.  For example:
 
-`"templates/config.txt", [ (^username=.*, "username=USERNAME"); (^password=.*, "password=PASSWORD") ]`
+`"templates/config.txt", [ (Regex "^username=.*", "username=USERNAME"); (Regex "^password=.*", "password=PASSWORD") ]`
 
-This would result in the replacement of any lines matches the given regular expressions with their corresponding strings, in the file `templates/config.txt`.
+This would result in the replacement of any line text matching the given regular expressions with their corresponding strings, in the file `templates/config.txt`.
 
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
 
