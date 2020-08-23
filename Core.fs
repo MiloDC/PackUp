@@ -1,7 +1,7 @@
 ﻿[<AutoOpen>]
 module PackUp.Core
 
-let [<Literal>] Version = "1.0.0"
+let [<Literal>] Version = "1.0.1"
 
 let internal dirSep = System.IO.Path.DirectorySeparatorChar
 

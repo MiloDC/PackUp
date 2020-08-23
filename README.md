@@ -1,4 +1,4 @@
-# PackUp 1.0.0
+# PackUp 1.0.1
 PackUp is a .NET Core archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
 
 #### Supported compression formats:
@@ -45,9 +45,9 @@ This would result in the replacement of any line text matching the given regular
 
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
 
-To execute a packing operation on a `Pack` record, call `PackUp.Pack.pack`:
+To execute a packing operation on a `Pack` record, open the PackUp module and call `Pack.pack`:
 
-`pack progressCallback pack`
+`Pack.pack progressCallback pack`
 
 `progressCallback` is an option of type `Progress -> unit` that is called regularly as packing takes place.  The `Progress` type is a discriminated union:
 ```

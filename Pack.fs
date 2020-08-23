@@ -1,21 +1,20 @@
-﻿module PackUp.Pack
+﻿namespace PackUp
 
 open System.IO
 open System.Text.RegularExpressions
-open Compression
 
-/// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string).
+/// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string)
 type EditMap = string * (Regex * string) seq
 
 type Pack =
     {
         description     : string
-        /// The root of all of the relative file paths in files and edits.
+        /// The root of all file paths in files and edits.
         rootDir         : string
         compression     : Compression
         /// Output file name of the compressed file, minus the extension.
         targetPath      : string
-        /// Whitelist, blacklist, and inlcude paths, all relative to rootDir.
+        /// Whitelist, blacklist, and include paths, all relative to rootDir.
         files           : Regex list * Regex list * Regex list
         edits           : EditMap list
     }
@@ -65,79 +64,85 @@ type Progress =
     | Incomplete of platform : string * percent : single
     | Complete of platform : string * targetPath : string
 
-let private reDotSlash = Regex @"^\./"
-let private isRegexMatch str (re : Regex) = re.IsMatch str
+[<RequireQualifiedAccess>]
+module Pack =
+    let private reDotSlash = Regex @"^\./"
+    let private isRegexMatch str (re : Regex) = re.IsMatch str
 
-let private invalidPathChars =
-    [| '*' |]
-    |> Array.append (Path.GetInvalidPathChars ()) |> Array.distinct
-let private validatePath path =
-    invalidPathChars
-    |> Array.fold (fun (dir : string) c -> dir.Replace (string c, ""))
-        (if not <| System.String.IsNullOrWhiteSpace path then path else "_")
-    |> fun s -> s.Replace (sprintf "%c%c" dirSep dirSep, sprintf "%c_%c" dirSep dirSep)
+    let private invalidPathChars =
+        [| '*' |]
+        |> Array.append (Path.GetInvalidPathChars ()) |> Array.distinct
+    let private validatePath path =
+        invalidPathChars
+        |> Array.fold (fun (dir : string) c -> dir.Replace (string c, ""))
+            (if not <| System.String.IsNullOrWhiteSpace path then path else "_")
+        |> fun s -> s.Replace (sprintf "%c%c" dirSep dirSep, sprintf "%c_%c" dirSep dirSep)
 
-let pack progressCallback pack =
-    let rootDir = pack.rootDir |> normalizePath |> sprintf "%s/"
-    let mutable packUpRootDir = null
-    while isNull packUpRootDir || Directory.Exists packUpRootDir do
-        packUpRootDir <-
-            sprintf "%s%s%c"
-                (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep
+    let pack progressCallback pack =
+        let rootDir = pack.rootDir |> normalizePath |> sprintf "%s/"
+        let mutable packUpRootDir = null
+        while isNull packUpRootDir || Directory.Exists packUpRootDir do
+            packUpRootDir <-
+                sprintf "%s%s%c"
+                    (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep
 
-    // Copy files.
-    let platformDir =
-        sprintf "%s%s%c%s%c"
-            packUpRootDir pack.description dirSep (Path.GetFileName pack.targetPath) dirSep
-        |> validatePath
-    if Directory.Exists platformDir then Directory.Delete (platformDir, true)
-    let whitelist, blacklist, includes = pack.files
-    let copyFiles =
-        DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles ("*.*", SearchOption.AllDirectories)
-        |> Array.choose (fun fileInfo ->
-            let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
-            let isMatch = isRegexMatch relativeFilePath
-            if
-                (whitelist |> List.exists isMatch)
-                || ((blacklist |> List.exists isMatch |> not) && (includes |> List.exists isMatch))
-            then
-                let relFilePath = reDotSlash.Replace (relativeFilePath, "")
-                Some (
-                    (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath
-                    , (sprintf "%s%s" platformDir relFilePath) |> Path.GetFullPath)
-            else None)
-    let copyCount = Seq.length copyFiles |> single
-    copyFiles
-    |> Array.iteri (fun i (srcFile, destFile) ->
-        let destDir = Path.GetDirectoryName destFile
-        if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
+        // Copy files.
+        let platformDir =
+            sprintf "%s%s%c%s%c"
+                packUpRootDir pack.description dirSep (Path.GetFileName pack.targetPath) dirSep
+            |> validatePath
+        if Directory.Exists platformDir then Directory.Delete (platformDir, true)
+        let whitelist, blacklist, includes = pack.files
+        let copyFiles =
+            ("*.*", SearchOption.AllDirectories)
+            |> DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles
+            |> Array.choose (fun fileInfo ->
+                let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
+                let isMatch = isRegexMatch relativeFilePath
+                if
+                    (whitelist |> List.exists isMatch)
+                    || (    (blacklist |> List.exists isMatch |> not)
+                            && (includes |> List.exists isMatch))
+                then
+                    let relFilePath = reDotSlash.Replace (relativeFilePath, "")
+                    Some (
+                        (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath
+                        , (sprintf "%s%s" platformDir relFilePath) |> Path.GetFullPath)
+                else None)
+        let copyCount = Seq.length copyFiles |> single
+        copyFiles
+        |> Array.iteri (fun i (srcFile, destFile) ->
+            let destDir = Path.GetDirectoryName destFile
+            if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
 
-        pack.edits
-        |> List.tryPick (fun (filePath, editMap) ->
-            let fullFilePath =
-                (sprintf "%s/%s" platformDir filePath |> normalizePath).Replace ("/./", "/")
-                |> Path.GetFullPath
-            if fullFilePath.Equals destFile then Some editMap else None)
-        |> Option.bind (fun editMap ->
-            let writer = File.CreateText destFile
-            let reader = File.OpenText srcFile
-            while not reader.EndOfStream do
-                editMap
-                |> Seq.fold (fun line (re, repl) -> re.Replace (line, repl)) (reader.ReadLine ())
-                |> writer.WriteLine
-            reader.Close ()
-            writer.Close () |> Some)
-        |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
+            pack.edits
+            |> List.tryPick (fun (filePath, editMap) ->
+                let fullFilePath =
+                    (sprintf "%s/%s" platformDir filePath |> normalizePath).Replace ("/./", "/")
+                    |> Path.GetFullPath
+                if fullFilePath.Equals destFile then Some editMap else None)
+            |> Option.bind (fun editMap ->
+                let writer = File.CreateText destFile
+                let reader = File.OpenText srcFile
+                while not reader.EndOfStream do
+                    editMap
+                    |> Seq.fold
+                        (fun line (re, repl) -> re.Replace (line, repl))
+                        (reader.ReadLine ())
+                    |> writer.WriteLine
+                reader.Close ()
+                writer.Close () |> Some)
+            |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
 
-        progressCallback |> Option.iter (fun f ->
-            f (Incomplete (pack.description, 0.99f * (single i / copyCount)))))
+            progressCallback |> Option.iter (fun f ->
+                f (Incomplete (pack.description, 0.99f * (single i / copyCount)))))
 
-    // Compress files.
-    let targetFilePath =
-        pack.compression
-        |> Compression.compress
-            (sprintf "%s%c" (DirectoryInfo platformDir).Parent.FullName dirSep)
-            pack.targetPath
-    progressCallback |> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
+        // Compress files.
+        let targetFilePath =
+            pack.compression
+            |> Compression.compress
+                (sprintf "%s%c" (DirectoryInfo platformDir).Parent.FullName dirSep)
+                pack.targetPath
+        progressCallback|> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
 
-    if Directory.Exists packUpRootDir then Directory.Delete (packUpRootDir, true)
+        if Directory.Exists packUpRootDir then Directory.Delete (packUpRootDir, true)

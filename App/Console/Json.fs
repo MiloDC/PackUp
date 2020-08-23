@@ -5,7 +5,6 @@ open System
 open System.Text.RegularExpressions
 open Newtonsoft.Json.Linq
 open PackUp
-open PackUp.Pack
 
 let private (|JsonString|_|) (jToken : JToken) =
     if (null <> jToken) && (jToken.Type = JTokenType.String) then
@@ -123,10 +122,10 @@ let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
 
                 compression =
                     match jObj.["compression"] with
-                    | JsonString s when s = "tar" -> Compression.Tar
-                    | JsonString s when s = "zip" -> Compression.Zip password
-                    | JsonString s when s = "tarzip" -> Compression.TarZip password
-                    | _ -> Compression.NoCompression
+                    | JsonString s when s = "tar" -> Tar
+                    | JsonString s when s = "zip" -> Zip password
+                    | JsonString s when s = "tarzip" -> TarZip password
+                    | _ -> NoCompression
 
                 targetPath = sprintf "%s/%s" (normalizePath rootDirectory.FullName) tgtName
 

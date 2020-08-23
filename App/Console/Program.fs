@@ -2,14 +2,13 @@
 
 open System.IO
 open PackUp
-open PackUp.Pack
 
 let [<Literal>] private DefaultConfigFileName = "packup.json"
 let [<Literal>] private FileResultBit = 128
-let [<Literal>] private DefaultCaseSensitivty = 0
+let [<Literal>] private DefaultCaseSens = 0
 let [<Literal>] private progBarLen = 50
 
-let private progressBar = function
+let private printProgress = function
     | Incomplete (platform, pct) ->
         (String.replicate (int (single progBarLen * pct)) "#").PadRight (progBarLen, '_')
         |> printf "\r%s [%s]" platform
@@ -34,7 +33,7 @@ let private (|ProcessArgs|) (args : string array) =
             | "-p" -> (res - 1, file, Set.add (arg.ToLower ()) plats, caseSens, action), ""
             | "-c" -> (res - 1, file, plats, snd (System.Int32.TryParse arg), action), ""
             | _ -> (res + 1, file, plats, caseSens, action), opt)
-        ((FileResultBit, "", Set.empty, DefaultCaseSensitivty, Seq.iter (pack (Some progressBar)))
+        ((FileResultBit, "", Set.empty, DefaultCaseSens, Seq.iter (Pack.pack (Some printProgress)))
             , "")
     |> fst
 
@@ -52,7 +51,7 @@ let main (ProcessArgs (result, configFile, platforms, caseSensitivity, action)) 
         printfn "Options:"
         printfn "\t-p PLATFORM [-p PLATFORM ...] - Pack given platform(s) only"
         printf "\t-c # - Bitwise case-sensitivity"
-        printfn " [1 = filenames, 2 = edits] (default = %d)" DefaultCaseSensitivty
+        printfn " [1 = filenames, 2 = edits] (default = %d)" DefaultCaseSens
         printfn "\t-v - output contents of PackUp file only"
 
     result
