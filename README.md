@@ -45,7 +45,7 @@ This would result in the replacement of any line text matching the given regular
 
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
 
-To execute a packing operation on a `Pack` record, open the PackUp module and call `Pack.pack`:
+To execute a packing operation on a `Pack` record, open the `PackUp` namespace and call `Pack.pack`:
 
 `Pack.pack progressCallback pack`
 
