@@ -21,7 +21,7 @@ type Pack =
         edits           : EditMap list
     }
 ```
-`rootDir` is the full path to the root directory of the archive.
+`rootDir` is the full path to the root directory of the files to be archived.
 
 `compression` is a discriminated union thusly defined:
 ```
