@@ -31,7 +31,7 @@ type Compression =
     | TarZip of password : string
     | NoCompression
 ```
-Passing a value of `NoCompression` currently yields undefined behavior, and is therefore discouraged.
+Empty or null password strings are interpreted to mean no password protection.  Passing a value of `NoCompression` currently yields undefined behavior, and is therefore discouraged.
 
 `targetPath` is a full path that informs PackUp where to write the generated archive file, minus the file extension (which will be determined by PackUp).
 
