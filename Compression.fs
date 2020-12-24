@@ -13,7 +13,7 @@ type Compression =
 module internal Compression =
     let rec compress (NativeFullPath srcPath) (NativeFullPath targetPath) = function
         | Tar ->
-            let tarFilePath = sprintf "%s.tar.gz" targetPath
+            let tarFilePath = $"{targetPath}.tar.gz"
             File.Delete tarFilePath
             use stream = new GZip.GZipOutputStream (File.Create tarFilePath)
 
@@ -36,7 +36,7 @@ module internal Compression =
 //            zip.CompressionLevel <- Zip.Compression.Deflater.CompressionLevel.DEFAULT_COMPRESSION
             if not <| System.String.IsNullOrEmpty password then zip.Password <- password
 
-            let zipFilePath = sprintf "%s.zip" targetPath
+            let zipFilePath = $"{targetPath}.zip"
             File.Delete zipFilePath
 
             let isDirSrcPath = Directory.Exists srcPath

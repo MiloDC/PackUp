@@ -127,7 +127,7 @@ let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
                     | JsonString s when s = "tarzip" -> TarZip password
                     | _ -> NoCompression
 
-                targetPath = sprintf "%s/%s" (normalizePath rootDirectory.FullName) tgtName
+                targetPath = $"{normalizePath rootDirectory.FullName}/{tgtName}"
 
                 files =
                     let wl, bl, incl = filesOf filenameCaseSens jObj.["files"]

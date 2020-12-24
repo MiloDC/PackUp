@@ -76,10 +76,10 @@ module Pack =
         invalidPathChars
         |> Array.fold (fun (dir : string) c -> dir.Replace (string c, ""))
             (if not <| System.String.IsNullOrWhiteSpace path then path else "_")
-        |> fun s -> s.Replace (sprintf "%c%c" dirSep dirSep, sprintf "%c_%c" dirSep dirSep)
+        |> fun s -> s.Replace ($"{dirSep}{dirSep}", $"{dirSep}_{dirSep}")
 
     let pack progressCallback pack =
-        let rootDir = pack.rootDir |> normalizePath |> sprintf "%s/"
+        let rootDir = $"{normalizePath pack.rootDir}/"
         let mutable packUpRootDir = null
         while isNull packUpRootDir || Directory.Exists packUpRootDir do
             packUpRootDir <-
@@ -88,8 +88,7 @@ module Pack =
 
         // Copy files.
         let platformDir =
-            sprintf "%s%s%c%s%c"
-                packUpRootDir pack.description dirSep (Path.GetFileName pack.targetPath) dirSep
+            $"{packUpRootDir}{pack.description}{dirSep}{Path.GetFileName pack.targetPath}{dirSep}"
             |> validatePath
         if Directory.Exists platformDir then Directory.Delete (platformDir, true)
         let whitelist, blacklist, includes = pack.files
@@ -106,8 +105,8 @@ module Pack =
                 then
                     let relFilePath = reDotSlash.Replace (relativeFilePath, "")
                     Some (
-                        (sprintf "%s%s" rootDir relFilePath) |> Path.GetFullPath
-                        , (sprintf "%s%s" platformDir relFilePath) |> Path.GetFullPath)
+                        Path.GetFullPath $"{rootDir}{relFilePath}",
+                        Path.GetFullPath $"{platformDir}{relFilePath}")
                 else None)
         let copyCount = Seq.length copyFiles |> single
         copyFiles
@@ -118,7 +117,7 @@ module Pack =
             pack.edits
             |> List.tryPick (fun (filePath, editMap) ->
                 let fullFilePath =
-                    (sprintf "%s/%s" platformDir filePath |> normalizePath).Replace ("/./", "/")
+                    (normalizePath $"{platformDir}/{filePath}").Replace ("/./", "/")
                     |> Path.GetFullPath
                 if fullFilePath.Equals destFile then Some editMap else None)
             |> Option.bind (fun editMap ->
@@ -141,7 +140,7 @@ module Pack =
         let targetFilePath =
             pack.compression
             |> Compression.compress
-                (sprintf "%s%c" (DirectoryInfo platformDir).Parent.FullName dirSep)
+                $"{(DirectoryInfo platformDir).Parent.FullName}{dirSep}"
                 pack.targetPath
         progressCallback|> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
 

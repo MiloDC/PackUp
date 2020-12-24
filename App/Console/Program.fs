@@ -13,7 +13,7 @@ let private printProgress = function
         (String.replicate (int (single progBarLen * pct)) "#").PadRight (progBarLen, '_')
         |> printf "\r%s [%s]" platform
     | Complete (platform, tgtPath) ->
-        (sprintf "\r%s -> %s" platform tgtPath).PadRight (platform.Length + progBarLen + 3, ' ')
+        $"\r{platform} -> {tgtPath}".PadRight (platform.Length + progBarLen + 3, ' ')
         |> printfn "%s"
 
 let private (|ProcessArgs|) (args : string array) =
