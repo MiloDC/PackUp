@@ -1,4 +1,4 @@
-# PackUp 1.1.0
+# PackUp 1.2.0
 PackUp is a .NET Core archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
 
 #### Supported compression formats:
@@ -18,7 +18,8 @@ type Pack =
         compression     : Compression
         targetPath      : string
         files           : Regex list * Regex list * Regex list
-        edits           : EditMap list
+        edits           : (string, (Regex, string) sequence) list
+        newLine         : NewLine
     }
 ```
 `rootDir` is the full path to the root directory of the files to be archived.
@@ -37,13 +38,15 @@ Empty or null password strings are interpreted to mean no password protection.  
 
 `files` is a tuple of regular expressions corresponding to whitelist, blacklist, and include items, respectively.  Matches are sought on all files underneath `rootDir`; if a file matches a regular expression on the whitelist, or if it matches a regular expression on the include list without also matching anything on the blacklist, then it will be added to the packed output.
 
-`edits` is a collection of items in the format `string, ((Regex, string) sequence)`, for which the `EditMap` type is simply an alias.  The first `string` is a file path, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.  For example:
+`edits` is a collection of items in the format `string, (Regex, string) sequence`.  The `string` item is a file path, while the sequence of `(Regex, string)` tuples corresponds to regular expression matches and string replacements on a line-by-line basis for the given file.  For example:
 
 `"templates/config.txt", [ (Regex "^username=.*", "username=USERNAME"); (Regex "^password=.*", "password=PASSWORD") ]`
 
 This would result in the replacement of any line text matching the given regular expressions with their corresponding strings, in the file `templates/config.txt`.
 
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
+
+`newLine` defines the newline string written during file edits.  The `NewLine` discriminated union comprises `CR`, `LF, `CRLF`, and `System` (i.e. the newline string of the operating system on which the packing operation takes place).
 
 To execute a packing operation on a `Pack` record, open the `PackUp` namespace and call `Pack.pack`:
 
@@ -95,8 +98,8 @@ Command options are:
 	},
 	"platforms" : {
 		"linux" : {
-			"compression" : "tar",
 			"target_name" : "my-linux-project",
+			"compression" : "tar",
 			"files" : [
 				"*/Makefile",
 				"-*/*Service/*"
@@ -109,11 +112,12 @@ Command options are:
 				"*/TcpDaemon/options.cfg" : [
 					"|^timeout_seconds=.*|timeout_seconds=60"
 				]
-			}
+			},
+			"newline" : "LF"
 		},
 		"windows" : {
-			"compression" : "zip",
 			"target_name" : "my_windows_project",
+			"compression" : "zip",
 			"password" : "P@$$wd",
 			"files" : [
 				"+*/3rdPartyLibrary/*/bin/*.dll",
@@ -121,7 +125,8 @@ Command options are:
 				"*.sln",
 				"*.vcxproj",
 				"-*/*Daemon/*"
-			]
+			],
+			"newline" : "CRLF"
 		}
 	}
 }

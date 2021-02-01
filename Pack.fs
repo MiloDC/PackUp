@@ -3,9 +3,6 @@
 open System.IO
 open System.Text.RegularExpressions
 
-/// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string)
-type EditMap = string * (Regex * string) seq
-
 type Pack =
     {
         description     : string
@@ -16,7 +13,9 @@ type Pack =
         targetPath      : string
         /// Whitelist, blacklist, and include paths, all relative to rootDir.
         files           : Regex list * Regex list * Regex list
-        edits           : EditMap list
+        /// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string)
+        edits           : (string * (Regex * string) seq) list
+        newLine         : NewLine
     }
 
     override this.ToString () =
@@ -85,6 +84,7 @@ module Pack =
             packUpRootDir <-
                 sprintf "%s%s%c"
                     (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep
+        let newLine = string pack.newLine
 
         // Copy files.
         let platformDir =
@@ -122,6 +122,7 @@ module Pack =
                 if fullFilePath.Equals destFile then Some editMap else None)
             |> Option.bind (fun editMap ->
                 let writer = File.CreateText destFile
+                writer.NewLine <- newLine
                 let reader = File.OpenText srcFile
                 while not reader.EndOfStream do
                     editMap

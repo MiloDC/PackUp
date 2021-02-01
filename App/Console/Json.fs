@@ -134,6 +134,9 @@ let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
                     globalWL @ wl, globalBL @ bl, globalIncl @ incl
 
                 edits = globalEdits @ editsOf editCaseSens jObj.["edits"]
+
+                newLine =
+                    match jObj.["newline"] with JsonString s -> NewLine.ofString s | _ -> System
             })
         |> Some)
     |> Option.defaultValue Seq.empty
