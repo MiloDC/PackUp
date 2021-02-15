@@ -1,5 +1,5 @@
 # PackUp 1.2.0
-PackUp is a .NET Core archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
+PackUp is a .NET archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
 
 #### Supported compression formats:
 - **zip**
@@ -9,6 +9,7 @@ PackUp is a .NET Core archival library, coded in F# and designed for use primari
 The **zip** and **tarzip** formats support optional password protection.
 
 ## Usage
+### The `Pack` type
 The PackUp library operates on `Pack` records:
 ```
 type Pack =
@@ -47,6 +48,8 @@ This would result in the replacement of any line text matching the given regular
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
 
 `newLine` defines the newline string written during file edits.  The `NewLine` discriminated union comprises `CR`, `LF`, `CRLF`, and `System` (i.e. the newline string of the operating system on which the packing operation takes place).
+
+### Packing files
 
 To execute a packing operation on a `Pack` record, open the `PackUp` namespace and call `Pack.pack`:
 
