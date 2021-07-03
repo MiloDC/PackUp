@@ -108,7 +108,7 @@ module Pack =
                         Path.GetFullPath $"{rootDir}{relFilePath}",
                         Path.GetFullPath $"{platformDir}{relFilePath}")
                 else None)
-        let copyCount = Seq.length copyFiles |> single
+        let jobCount = (Seq.length copyFiles) + 1 |> single   // +1 for compression
         copyFiles
         |> Array.iteri (fun i (srcFile, destFile) ->
             let destDir = Path.GetDirectoryName destFile
@@ -134,8 +134,8 @@ module Pack =
                 writer.Close () |> Some)
             |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
 
-            progressCallback |> Option.iter (fun f ->
-                f (Incomplete (pack.description, 0.99f * (single i / copyCount)))))
+            progressCallback
+            |> Option.iter (fun f -> f (Incomplete (pack.description, single i / jobCount))))
 
         // Compress files.
         let targetFilePath =
@@ -143,6 +143,6 @@ module Pack =
             |> Compression.compress
                 $"{(DirectoryInfo platformDir).Parent.FullName}{dirSep}"
                 pack.targetPath
-        progressCallback|> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
+        progressCallback |> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
 
         if Directory.Exists packUpRootDir then Directory.Delete (packUpRootDir, true)
