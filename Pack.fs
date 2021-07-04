@@ -119,17 +119,16 @@ module Pack =
                     |> Path.GetFullPath
                 if fullFilePath.Equals destFile then Some editMap else None)
             |> Option.bind (fun editMap ->
-                let writer = File.CreateText destFile
+                use writer = File.CreateText destFile
                 writer.NewLine <- newLine
-                let reader = File.OpenText srcFile
+                use reader = File.OpenText srcFile
                 while not reader.EndOfStream do
                     editMap
                     |> Seq.fold
                         (fun line (re, repl) -> re.Replace (line, repl))
                         (reader.ReadLine ())
                     |> writer.WriteLine
-                reader.Close ()
-                writer.Close () |> Some)
+                Some ())
             |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
 
             progressCallback
