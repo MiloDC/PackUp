@@ -50,11 +50,11 @@ let main (ProcessArgs (result, configsFile, configs, caseSensitivity, action)) =
     else
         printfn
             $"PackUp version %s{Core.Version}\n\
-            Syntax: PackUp [OPTIONS] [CONFIG_FILE]\n\
+            Syntax: PackUp [OPTIONS] CONFIG_FILE\n\
             Options:\n    \
-            -c CONFIG [-c CONFIG ...] - Pack given configuration(s) only\n    \
-            -s BITS - Bitwise case-sensitivity [1 = filenames, 2 = edits]\
-            (default = %d{DefaultCaseSens})\n    \
-            -v - output contents of PackUp file only"
+                -c CONFIG [-c CONFIG ...] - Pack given configuration(s) only\n    \
+                -s BITS - Bitwise case-sensitivity [1 = filenames, 2 = edits] \
+                    (default = %d{DefaultCaseSens})\n    \
+                -v - view contents of PackUp file only"
 
     result
