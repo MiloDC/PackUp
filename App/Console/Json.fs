@@ -78,7 +78,7 @@ let private editsOf caseSensitive (JsonArrayMap map) =
         if Seq.length reRepls > 0 then Some (filePath, reRepls) else None)
     |> Seq.toList
 
-let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
+let readFile (configs : Set<string>) caseSensitivity jsonFilePath =
     let json =
         try
             IO.File.ReadAllText jsonFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
@@ -108,15 +108,15 @@ let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
 
     json
     |> Option.bind (fun j ->
-        let (JsonMapMap map) = j.["platforms"]
+        let (JsonMapMap map) = j.["configurations"]
         map
-        |> Seq.filter (fun (KeyValue (p, _)) -> platforms.IsEmpty || platforms.Contains p)
-        |> Seq.map (fun (KeyValue (platform, jObj)) ->
-            let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> platform
+        |> Seq.filter (fun (KeyValue (p, _)) -> configs.IsEmpty || configs.Contains p)
+        |> Seq.map (fun (KeyValue (config, jObj)) ->
+            let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> config
             let password = match jObj.["password"] with JsonString s -> s | _ -> null
 
             {
-                description = platform
+                description = config
 
                 rootDir = rootDirectory.FullName
 
@@ -138,5 +138,6 @@ let readFile (platforms : Set<string>) caseSensitivity jsonFilePath =
                 newLine =
                     match jObj.["newline"] with JsonString s -> NewLine.ofString s | _ -> System
             })
+        |> List.ofSeq
         |> Some)
-    |> Option.defaultValue Seq.empty
+    |> Option.defaultValue List.empty

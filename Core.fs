@@ -1,7 +1,7 @@
 ﻿[<AutoOpen>]
 module PackUp.Core
 
-let [<Literal>] Version = "1.2.0"
+let [<Literal>] Version = "1.3.0"
 
 type NewLine =
     | System

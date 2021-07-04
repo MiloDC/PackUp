@@ -1,4 +1,4 @@
-# PackUp 1.2.0
+# PackUp 1.3.0
 PackUp is a .NET archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
 
 #### Supported compression formats:
@@ -74,9 +74,9 @@ The command syntax for this console app is:
 
 Command options are:
 
-- **`-p PLATFORM`** _(multi-use)_ - Pack only the specified platform(s) (by default, all platforms defined in the config. file are processed)
-- **`-c #`** - Bitwise case-sensitivity for regular expression matching (1 = filenames, 2 = edits), default = 0
-- **`-v`** - view the contents of the PackUp file only (no platforms will be archived)
+- **`-c CONFIG`** _(multi-use)_ - Pack only the specified configuration(s) (by default, all configurations defined in the file are processed)
+- **`-s BITS`** - Bitwise case-sensitivity for regular expression matching (1 = filenames, 2 = edits), default = 0
+- **`-v`** - view the PackUp file only (no files will be archived)
 
 #### Sample JSON configuration file:
 ```
@@ -99,7 +99,7 @@ Command options are:
 			"|^password=.*|password=PASSWORD"
 		]
 	},
-	"platforms" : {
+	"configurations" : {
 		"linux" : {
 			"target_name" : "my-linux-project",
 			"compression" : "tar",
@@ -135,7 +135,7 @@ Command options are:
 }
 ```
 ##### Notes on the JSON configuration file:
-- The `global_files` and `global_edits` collections are processed for all platforms.
+- The `global_files` and `global_edits` collections are processed for all configurations.
 - File paths must _not_ be in regular expression syntax.  The standard wildcard notations `*` (zero or more of any characters) and `?` (any single character) are permitted.
 - Files matching paths prepended with `+` are categorized as whitelist items, while `-` corresponds to the blacklist.  (See **Usage**, above.)
 - `target_name` defines the file name of the target archive file.  This file will be written to the directory containing the JSON configuration file, with the appropriate extension (`.zip` or `.tar.gz`) applied.

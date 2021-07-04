@@ -35,33 +35,31 @@ type Pack =
         Printf.bprintf sb "targetPath = \"%s\"\n" this.targetPath
 
         let whitelist, blacklist, includes = this.files
-        if whitelist.Length > 0 then
-            Printf.bprintf sb "files =\n\twhitelist =\n"
-            whitelist |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
-        if blacklist.Length > 0 then
-            if 0 = whitelist.Length then
-                Printf.bprintf sb "files =\n"
-            Printf.bprintf sb "\tblacklist =\n"
-            blacklist |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
-        if includes.Length > 0 then
-            if 0 = whitelist.Length && 0 = blacklist.Length then
-                Printf.bprintf sb "files =\n"
-            Printf.bprintf sb "\tincludes =\n"
-            includes |> Seq.iter (Printf.bprintf sb "\t\t%O\n")
+        [ "whitelist", whitelist; "blacklist", blacklist; "includes", includes ]
+        |> List.fold
+            (fun state (name, reList) ->
+                if reList.Length > 0 then
+                    if not state then Printf.bprintf sb "files =\n"
+                    Printf.bprintf sb $"    %s{name} =\n"
+                    reList |> Seq.iter (Printf.bprintf sb "        %O\n")
+                    true
+                else state)
+            false
+        |> ignore
 
         if this.edits.Length > 0 then
             Printf.bprintf sb "edits =\n"
             this.edits
             |> Seq.iter (fun (filePath, reRepls) ->
-                Printf.bprintf sb "\t\"%s\" =\n" filePath
+                Printf.bprintf sb "    \"%s\" =\n" filePath
                 reRepls |> Seq.iter (fun (re, repl) ->
-                    Printf.bprintf sb "\t\t%O -> \"%s\"\n" re repl))
+                    Printf.bprintf sb "        %O -> \"%s\"\n" re repl))
 
-        sb.ToString ()
+        string sb
 
 type Progress =
-    | Incomplete of platform : string * percent : single
-    | Complete of platform : string * targetPath : string
+    | Incomplete of config : string * percent : single
+    | Complete of config : string * targetPath : string
 
 [<RequireQualifiedAccess>]
 module Pack =
@@ -87,10 +85,10 @@ module Pack =
         let newLine = string pack.newLine
 
         // Copy files.
-        let platformDir =
+        let workDir =
             $"{packUpRootDir}{pack.description}{dirSep}{Path.GetFileName pack.targetPath}{dirSep}"
             |> validatePath
-        if Directory.Exists platformDir then Directory.Delete (platformDir, true)
+        if Directory.Exists workDir then Directory.Delete (workDir, true)
         let whitelist, blacklist, includes = pack.files
         let copyFiles =
             ("*.*", SearchOption.AllDirectories)
@@ -106,7 +104,7 @@ module Pack =
                     let relFilePath = reDotSlash.Replace (relativeFilePath, "")
                     Some (
                         Path.GetFullPath $"{rootDir}{relFilePath}",
-                        Path.GetFullPath $"{platformDir}{relFilePath}")
+                        Path.GetFullPath $"{workDir}{relFilePath}")
                 else None)
         let jobCount = (Seq.length copyFiles) + 1 |> single   // +1 for compression
         copyFiles
@@ -117,7 +115,7 @@ module Pack =
             pack.edits
             |> List.tryPick (fun (filePath, editMap) ->
                 let fullFilePath =
-                    (normalizePath $"{platformDir}/{filePath}").Replace ("/./", "/")
+                    (normalizePath $"{workDir}/{filePath}").Replace ("/./", "/")
                     |> Path.GetFullPath
                 if fullFilePath.Equals destFile then Some editMap else None)
             |> Option.bind (fun editMap ->
@@ -141,7 +139,7 @@ module Pack =
         let targetFilePath =
             pack.compression
             |> Compression.compress
-                $"{(DirectoryInfo platformDir).Parent.FullName}{dirSep}"
+                $"{(DirectoryInfo workDir).Parent.FullName}{dirSep}"
                 pack.targetPath
         progressCallback |> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
 
