@@ -61,7 +61,7 @@ type Progress =
     | Incomplete of string * single
     | Complete of string * string
 ```
-The first `string` value in both cases is simply `Pack.description`.  The `single` value of `Incomplete` will be a value ranging `0.f` to `0.99f`.  `Complete`, the second `string` of which is the full path of the target asset, is passed at the end of the packing operation.
+The first `string` value in both cases is simply `Pack.description`.  The `single` value of `Incomplete` will be a value ranging `0.f` to `< 1.f`.  `Complete`, the second `string` of which is the full path of the target asset, is passed at the end of the packing operation.
 
 ## Apps
 The PackUp project includes a console application that reads a JSON configuration file.
