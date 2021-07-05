@@ -55,15 +55,16 @@ module private RE =
 let private filesOf caseSensitive (JsonStringArray files) =
     files
     |> Seq.filter RE.filePath.IsMatch
-    |> Seq.fold (fun (wl, bl, incl) filePath ->
-        let re = RE.filePathOptions.Replace (filePath, "") |> RE.regexOf true caseSensitive
-        let opts = (RE.filePathOptions.Match filePath).Value
-        if opts.Contains '+' then
-            wl @ [ re ], bl, incl
-        elif opts.Contains '-' then
-            wl, bl @ [ re ], incl
-        else
-            wl, bl, incl @ [ re ])
+    |> Seq.fold
+        (fun (wl, bl, incl) filePath ->
+            let re = RE.filePathOptions.Replace (filePath, "") |> RE.regexOf true caseSensitive
+            let opts = (RE.filePathOptions.Match filePath).Value
+            if opts.Contains '+' then
+                wl @ [ re ], bl, incl
+            elif opts.Contains '-' then
+                wl, bl @ [ re ], incl
+            else
+                wl, bl, incl @ [ re ])
         ([], [], [])
 
 let private editsOf caseSensitive (JsonArrayMap map) =
@@ -78,37 +79,23 @@ let private editsOf caseSensitive (JsonArrayMap map) =
         if Seq.length reRepls > 0 then Some (filePath, reRepls) else None)
     |> Seq.toList
 
-let readFile (configs : Set<string>) caseSensitivity jsonFilePath =
-    let json =
-        try
-            IO.File.ReadAllText jsonFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
-        with
-        | :? Newtonsoft.Json.JsonReaderException as exc ->
-            printfn "Error reading JSON from %s" jsonFilePath
-            None
-        | _ ->
-            printfn "Error reading file %s" jsonFilePath
-            None
+let readFile (configs : Set<string>) caseSens jsonFilePath =
+    try
+        IO.File.ReadAllText jsonFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
+    with
+    | :? Newtonsoft.Json.JsonReaderException as exc ->
+        printfn "Error reading JSON from %s" jsonFilePath
+        None
+    | _ ->
+        printfn "Error reading file %s" jsonFilePath
+        None
+    |> Option.bind (fun jRoot ->
+        let filenameCaseSens, editCaseSens = (caseSens &&& 1) > 0, (caseSens &&& 2) > 0
+        let globalWL, globalBL, globalIncl = filesOf filenameCaseSens jRoot.["global_files"]
+        let globalEdits = editsOf editCaseSens jRoot.["global_edits"]
+        let rootDirectory = (IO.FileInfo jsonFilePath).Directory
 
-    let filenameCaseSens, editCaseSens = (caseSensitivity &&& 1) > 0, (caseSensitivity &&& 2) > 0
-
-    let globalWL, globalBL, globalIncl =
-        match json with
-        | Some j -> filesOf filenameCaseSens j.["global_files"]
-        | _ -> [], [], []
-
-    let globalEdits =
-        match json with
-        | Some j -> editsOf editCaseSens j.["global_edits"]
-        | _ -> []
-
-    let rootDirectory =
-        if json.IsSome then (IO.FileInfo jsonFilePath).Directory
-        else IO.DirectoryInfo (IO.Directory.GetCurrentDirectory ())
-
-    json
-    |> Option.bind (fun j ->
-        let (JsonMapMap map) = j.["configurations"]
+        let (JsonMapMap map) = jRoot.["configurations"]
         map
         |> Seq.filter (fun (KeyValue (p, _)) -> configs.IsEmpty || configs.Contains p)
         |> Seq.map (fun (KeyValue (config, jObj)) ->
@@ -117,24 +104,19 @@ let readFile (configs : Set<string>) caseSensitivity jsonFilePath =
 
             {
                 description = config
-
                 rootDir = rootDirectory.FullName
-
                 compression =
                     match jObj.["compression"] with
                     | JsonString s when s = "tar" -> Tar
                     | JsonString s when s = "zip" -> Zip password
                     | JsonString s when s = "tarzip" -> TarZip password
                     | _ -> NoCompression
-
                 targetPath = $"{normalizePath rootDirectory.FullName}/{tgtName}"
-
                 files =
                     let wl, bl, incl = filesOf filenameCaseSens jObj.["files"]
                     globalWL @ wl, globalBL @ bl, globalIncl @ incl
 
                 edits = globalEdits @ editsOf editCaseSens jObj.["edits"]
-
                 newLine =
                     match jObj.["newline"] with JsonString s -> NewLine.ofString s | _ -> System
             })
