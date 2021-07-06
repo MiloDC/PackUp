@@ -19,20 +19,20 @@ let private showProgress = function
 let private (|ProcessArgs|) (args : string array) =
     args
     |> Array.truncate (FileResultBit - 1)
-    |> Array.fold (fun ((res, file, configs, caseSens, action), opt) arg ->
-        if arg.StartsWith '-' then
-            match arg with
-            | "-v" -> (res, file, configs, caseSens, List.iter (fun p -> printfn "%O" p)), ""
-            | _ -> (res + 1, file, configs, caseSens, action), arg
-        else
-            match opt with
-            | "" ->
-                (res - FileResultBit, (if File.Exists arg then (FileInfo arg).FullName else ""),
-                    configs, caseSens, action)
-                , "-"
-            | "-c" -> (res - 1, file, Set.add (arg.ToLower ()) configs, caseSens, action), ""
-            | "-s" -> (res - 1, file, configs, snd (System.Int32.TryParse arg), action), ""
-            | _ -> (res + 1, file, configs, caseSens, action), opt)
+    |> Array.fold
+        (fun ((res, file, configs, caseSens, action), opt) arg ->
+            if arg.StartsWith '-' then
+                match arg with
+                | "-v" -> (res, file, configs, caseSens, List.iter (fun p -> printfn "%O" p)), ""
+                | _ -> (res + 1, file, configs, caseSens, action), arg
+            else
+                match opt with
+                | "" ->
+                    let f = if File.Exists arg then (FileInfo arg).FullName else ""
+                    (res - FileResultBit, f, configs, caseSens, action), "-"
+                | "-c" -> (res - 1, file, Set.add (arg.ToLower ()) configs, caseSens, action), ""
+                | "-s" -> (res - 1, file, configs, snd (System.Int32.TryParse arg), action), ""
+                | _ -> (res + 1, file, configs, caseSens, action), opt)
         ((FileResultBit, "", Set.empty, DefaultCaseSens, List.iter (Pack.pack (Some showProgress)))
             , "")
     |> fst

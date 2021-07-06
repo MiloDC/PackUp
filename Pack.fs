@@ -37,14 +37,14 @@ type Pack =
         let whitelist, blacklist, includes = this.files
         [ "whitelist", whitelist; "blacklist", blacklist; "includes", includes ]
         |> List.fold
-            (fun state (name, reList) ->
+            (fun isFirst (name, reList) ->
                 if reList.Length > 0 then
-                    if not state then Printf.bprintf sb "files =\n"
+                    if isFirst then Printf.bprintf sb "files =\n"
                     Printf.bprintf sb $"    %s{name} =\n"
                     reList |> Seq.iter (Printf.bprintf sb "        %O\n")
-                    true
-                else state)
-            false
+                    false
+                else isFirst)
+            true
         |> ignore
 
         if this.edits.Length > 0 then
@@ -64,14 +64,15 @@ type Progress =
 [<RequireQualifiedAccess>]
 module Pack =
     let private reDotSlash = Regex @"^\./"
-    let private isRegexMatch str (re : Regex) = re.IsMatch str
 
     let private invalidPathChars =
         [| '*' |]
         |> Array.append (Path.GetInvalidPathChars ()) |> Array.distinct
+
     let private validatePath path =
         invalidPathChars
-        |> Array.fold (fun (dir : string) c -> dir.Replace (string c, ""))
+        |> Array.fold
+            (fun (dir : string) c -> dir.Replace (string c, ""))
             (if not <| System.String.IsNullOrWhiteSpace path then path else "_")
         |> fun s -> s.Replace ($"{dirSep}{dirSep}", $"{dirSep}_{dirSep}")
 
@@ -89,17 +90,16 @@ module Pack =
             $"{packUpRootDir}{pack.description}{dirSep}{Path.GetFileName pack.targetPath}{dirSep}"
             |> validatePath
         if Directory.Exists workDir then Directory.Delete (workDir, true)
-        let whitelist, blacklist, includes = pack.files
+        let wl, bl, incl = pack.files
         let copyFiles =
             ("*.*", SearchOption.AllDirectories)
             |> DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles
             |> Array.choose (fun fileInfo ->
                 let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
-                let isMatch = isRegexMatch relativeFilePath
+                let isMatch (re : Regex) = re.IsMatch relativeFilePath
                 if
-                    (whitelist |> List.exists isMatch)
-                    || (    (blacklist |> List.exists isMatch |> not)
-                            && (includes |> List.exists isMatch))
+                    (wl |> List.exists isMatch)
+                    || ((bl |> List.exists isMatch |> not) && (incl |> List.exists isMatch))
                 then
                     let relFilePath = reDotSlash.Replace (relativeFilePath, "")
                     Some (
