@@ -7,6 +7,9 @@ let [<Literal>] private DefaultConfigFileName = "packup.json"
 let [<Literal>] private FileResultBit = 128
 let [<Literal>] private DefaultCaseSens = 0
 let [<Literal>] private ProgBarLen = 50
+let private AppVersion =
+    let assm = System.Reflection.Assembly.GetExecutingAssembly ()
+    System.Diagnostics.FileVersionInfo.GetVersionInfo(assm.Location).FileVersion
 
 let private showProgress = function
     | Incomplete (config, pct) ->
@@ -49,7 +52,7 @@ let main (ProcessArgs (result, configsFile, configs, caseSensitivity, action)) =
         | packs -> action packs
     else
         printfn
-            $"PackUp version %s{Core.Version}\n\
+            $"PackUp version %s{AppVersion}\n\
             Syntax: PackUp [OPTIONS] CONFIG_FILE\n\
             Options:\n    \
                 -c CONFIG [-c CONFIG ...] - Pack given configuration(s) only\n    \

@@ -1,7 +1,9 @@
 ﻿[<AutoOpen>]
 module PackUp.Core
 
-let [<Literal>] Version = "1.3.0"
+let Version =
+    let assm = System.Reflection.Assembly.GetExecutingAssembly ()
+    System.Diagnostics.FileVersionInfo.GetVersionInfo(assm.Location).FileVersion
 
 type NewLine =
     | System
