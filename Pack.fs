@@ -21,18 +21,18 @@ type Pack =
     override this.ToString () =
         let sb = System.Text.StringBuilder ()
 
-        Printf.bprintf sb "description = \"%O\"\n" this.description
+        Printf.bprintf sb $"description = \"%O{this.description}\"\n"
 
-        Printf.bprintf sb "rootDir = \"%O\"\n" this.rootDir
+        Printf.bprintf sb $"rootDir = \"%O{this.rootDir}\"\n"
 
         Printf.bprintf sb "compression = "
         match this.compression with
         | Tar -> Printf.bprintf sb "tar\n"
-        | Zip password -> Printf.bprintf sb "zip (password = \"%s\")\n" password
-        | TarZip password -> Printf.bprintf sb "tarzip (password = \"%s\")\n" password
+        | Zip password -> Printf.bprintf sb $"zip (password = \"%s{password}\")\n"
+        | TarZip password -> Printf.bprintf sb $"tarzip (password = \"%s{password}\")\n"
         | NoCompression -> Printf.bprintf sb "none\n"
 
-        Printf.bprintf sb "targetPath = \"%s\"\n" this.targetPath
+        Printf.bprintf sb $"targetPath = \"%s{this.targetPath}\"\n"
 
         let whitelist, blacklist, includes = this.files
         [ "whitelist", whitelist; "blacklist", blacklist; "includes", includes ]
@@ -51,9 +51,9 @@ type Pack =
             Printf.bprintf sb "edits =\n"
             this.edits
             |> Seq.iter (fun (filePath, reRepls) ->
-                Printf.bprintf sb "    \"%s\" =\n" filePath
+                Printf.bprintf sb $"    \"%s{filePath}\" =\n"
                 reRepls |> Seq.iter (fun (re, repl) ->
-                    Printf.bprintf sb "        %O -> \"%s\"\n" re repl))
+                    Printf.bprintf sb $"        %O{re} -> \"%s{repl}\"\n"))
 
         string sb
 
@@ -78,8 +78,8 @@ module Pack =
 
     let pack progressCallback pack =
         let rootDir = $"{normalizePath pack.rootDir}/"
-        let mutable packUpRootDir = null
-        while isNull packUpRootDir || Directory.Exists packUpRootDir do
+        let mutable packUpRootDir = ""
+        while System.String.IsNullOrEmpty packUpRootDir || Directory.Exists packUpRootDir do
             packUpRootDir <-
                 sprintf "%s%s%c"
                     (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep

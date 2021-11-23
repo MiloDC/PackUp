@@ -11,7 +11,8 @@ type Compression =
 
 [<RequireQualifiedAccess>]
 module internal Compression =
-    let rec compress (NativeFullPath srcPath) (NativeFullPath targetPath) = function
+    let rec compress (NativeFullPath srcPath) (NativeFullPath targetPath) compression =
+        match compression with
         | Tar ->
             let tarFilePath = $"{targetPath}.tar.gz"
             File.Delete tarFilePath

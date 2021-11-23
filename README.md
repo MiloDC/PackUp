@@ -144,7 +144,6 @@ Command options are:
 PackUp employs the following third-party libraries:
 
 - [SharpZipLib](https://github.com/PingmanTools/SharpZipLib)
-- [Json.NET](https://www.newtonsoft.com/json)
 
 ## Credits
 PackUp is authored by [Milo D. Cooper](https://www.miloonline.net).

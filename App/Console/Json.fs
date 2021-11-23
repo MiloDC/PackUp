@@ -2,40 +2,66 @@
 module PackUp.Application.Json
 
 open System
+open System.Text.Json
 open System.Text.RegularExpressions
-open Newtonsoft.Json.Linq
 open PackUp
 
-let private (|JsonString|_|) (jToken : JToken) =
-    if (null <> jToken) && (jToken.Type = JTokenType.String) then
-        Some (jToken.Value<string> ())
-    else None
+let private (|JArray|_|) (jsonElement : JsonElement, propertyName : string) =
+    match jsonElement.TryGetProperty propertyName with
+    | true, jElement when jElement.ValueKind = JsonValueKind.Array ->
+        jElement.EnumerateArray () |> Some
+    | _ -> None
 
-let private (|JsonStringArray|) (jToken : JToken) =
-    if (null <> jToken) && (jToken.Type = JTokenType.Array) then
-        jToken.Children ()
-        |> Seq.choose (fun t ->
-            if t.Type = JTokenType.String then
-                let str = t.Value<string> ()
+let private (|JObj|_|) (jsonElement : JsonElement, propertyName : string) =
+    match jsonElement.TryGetProperty propertyName with
+    | true, jElement when jElement.ValueKind = JsonValueKind.Object ->
+        jElement.EnumerateObject () |> Some
+    | _ -> None
+
+let private (|JString|_|) (jsonElement : JsonElement, propertyName : string) =
+    match jsonElement.TryGetProperty propertyName with
+    | true, jElement when jElement.ValueKind = JsonValueKind.String ->
+        jElement.GetString () |> Some
+    | _ -> None
+
+let private (|JKeyValue|) (jsonProperty : JsonProperty) = jsonProperty.Name, jsonProperty.Value
+
+let private (|JStringArray|) = function
+    | JArray jArray ->
+        jArray
+        |> Seq.choose (fun el ->
+            if JsonValueKind.String = el.ValueKind then
+                let str = el.GetString ()
                 if not <| String.IsNullOrEmpty str then Some str else None
             else None)
-    else Seq.empty
+    | _ -> Seq.empty
 
-let private (|JsonArrayMap|) (jToken : JToken) =
-    if (null <> jToken) && (jToken.Type = JTokenType.Object) then
-        downcast (jToken :?> JObject)
-        |> Seq.choose (fun (KeyValue (key, jToken)) ->
-            if jToken.Type = JTokenType.Array then Some (key, jToken :?> JArray) else None)
-    else Seq.empty
-    |> dict
+let private (|JArrayMap|) = function
+    | JObj jObj ->
+        jObj
+        |> Seq.choose (fun (JKeyValue (k, v)) ->
+            if JsonValueKind.Array = v.ValueKind then Some (k, v) else None)
+        |> dict
+    | _ -> dict Seq.empty
 
-let private (|JsonMapMap|) (jToken : JToken) =
-    if (null <> jToken) && (jToken.Type = JTokenType.Object) then
-        downcast (jToken :?> JObject)
-        |> Seq.choose (fun (KeyValue (key, jToken)) ->
-            if jToken.Type = JTokenType.Object then Some (key, jToken :?> JObject) else None)
-    else Seq.empty
-    |> dict
+let private (|JObjectMap|) = function
+    | JObj jObj ->
+        jObj
+        |> Seq.choose (fun (JKeyValue (k, v)) ->
+            if JsonValueKind.Object = v.ValueKind then Some (k, v) else None)
+        |> dict
+    | _ -> dict Seq.empty
+
+let private (|JFile|) jsonFilePath =
+    try
+        Some (jsonFilePath, (IO.File.ReadAllText jsonFilePath |> JsonDocument.Parse).RootElement)
+    with
+    | :? JsonException as exc ->
+        printfn $"Invalid JSON in %s{jsonFilePath}"
+        None
+    | exc ->
+        printfn $"Error reading file %s{jsonFilePath}: %s{exc.Message}"
+        None
 
 [<RequireQualifiedAccess>]
 module private RE =
@@ -52,7 +78,7 @@ module private RE =
             else s
             , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)
 
-let private filesOf caseSensitive (JsonStringArray files) =
+let private filesOf caseSensitive (JStringArray files) =
     files
     |> Seq.filter RE.filePath.IsMatch
     |> Seq.fold
@@ -67,58 +93,54 @@ let private filesOf caseSensitive (JsonStringArray files) =
                 wl, bl, incl @ [ re ])
         ([], [], [])
 
-let private editsOf caseSensitive (JsonArrayMap map) =
+let private editsOf caseSensitive (JArrayMap map) =
     map
-    |> Seq.choose (fun (KeyValue (filePath, JsonStringArray jArray)) ->
+    |> Seq.choose (fun (KeyValue (filePath, jArray)) ->
         let reRepls =
-            jArray
-            |> Seq.choose (fun str ->
-                match str.Split str.[0] with
-                | [| ""; reStr; replStr |] -> Some (RE.regexOf false caseSensitive reStr, replStr)
-                | _ -> None)
+            jArray.EnumerateArray ()
+            |> Seq.choose (fun jElement ->
+                if JsonValueKind.String = jElement.ValueKind then
+                    let str = jElement.GetString()
+                    match str.Split str.[0] with
+                    | [| ""; reStr; replStr |] ->
+                        Some (RE.regexOf false caseSensitive reStr, replStr)
+                    | _ -> None
+                else None)
         if Seq.length reRepls > 0 then Some (filePath, reRepls) else None)
     |> Seq.toList
 
-let readFile (configs : Set<string>) caseSens jsonFilePath =
-    try
-        IO.File.ReadAllText jsonFilePath |> Newtonsoft.Json.Linq.JObject.Parse |> Some
-    with
-    | :? Newtonsoft.Json.JsonReaderException as exc ->
-        printfn "Error reading JSON from %s" jsonFilePath
-        None
-    | _ ->
-        printfn "Error reading file %s" jsonFilePath
-        None
-    |> Option.bind (fun jRoot ->
+let internal readFile (configs : Set<string>) caseSens (JFile jFile) =
+    jFile
+    |> Option.bind (fun (jsonFilePath, jRoot) ->
         let filenameCaseSens, editCaseSens = (caseSens &&& 1) > 0, (caseSens &&& 2) > 0
-        let globalWL, globalBL, globalIncl = filesOf filenameCaseSens jRoot.["global_files"]
-        let globalEdits = editsOf editCaseSens jRoot.["global_edits"]
+        let globalWL, globalBL, globalIncl = filesOf filenameCaseSens (jRoot, "global_files")
+        let globalEdits = editsOf editCaseSens (jRoot, "global_edits")
         let rootDirectory = (IO.FileInfo jsonFilePath).Directory
 
-        let (JsonMapMap map) = jRoot.["configurations"]
+        let (JObjectMap map) = jRoot, "configurations"
         map
-        |> Seq.filter (fun (KeyValue (p, _)) -> configs.IsEmpty || configs.Contains p)
+        |> Seq.filter (fun (KeyValue (c, _)) -> configs.IsEmpty || configs.Contains c)
         |> Seq.map (fun (KeyValue (config, jObj)) ->
-            let tgtName = match jObj.["target_name"] with JsonString s -> s | _ -> config
-            let password = match jObj.["password"] with JsonString s -> s | _ -> null
+            let tgtName = match jObj, "target_name" with JString s -> s | _ -> config
+            let password = match jObj, "password" with JString s -> s | _ -> ""
 
             {
                 description = config
                 rootDir = rootDirectory.FullName
                 compression =
-                    match jObj.["compression"] with
-                    | JsonString s when s = "tar" -> Tar
-                    | JsonString s when s = "zip" -> Zip password
-                    | JsonString s when s = "tarzip" -> TarZip password
+                    match jObj, "compression" with
+                    | JString s when s = "tar" -> Tar
+                    | JString s when s = "zip" -> Zip password
+                    | JString s when s = "tarzip" -> TarZip password
                     | _ -> NoCompression
                 targetPath = $"{normalizePath rootDirectory.FullName}/{tgtName}"
                 files =
-                    let wl, bl, incl = filesOf filenameCaseSens jObj.["files"]
+                    let wl, bl, incl = filesOf filenameCaseSens (jObj, "files")
                     globalWL @ wl, globalBL @ bl, globalIncl @ incl
 
-                edits = globalEdits @ editsOf editCaseSens jObj.["edits"]
+                edits = globalEdits @ editsOf editCaseSens (jObj, "edits")
                 newLine =
-                    match jObj.["newline"] with JsonString s -> NewLine.ofString s | _ -> System
+                    match jObj, "newline" with JString s -> NewLine.ofString s | _ -> System
             })
         |> List.ofSeq
         |> Some)

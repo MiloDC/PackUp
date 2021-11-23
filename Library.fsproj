@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <AssemblyName>PackUpLib</AssemblyName>
-    <Version>1.3.0</Version>
+    <Version>1.4.0</Version>
     <ApplicationIcon>PackUp.ico</ApplicationIcon>
     <IsPublishable>False</IsPublishable>
   </PropertyGroup>
@@ -27,7 +27,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="SharpZipLib.NETStandard" Version="1.0.7" />
   </ItemGroup>
 
