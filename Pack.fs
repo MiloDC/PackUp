@@ -118,7 +118,7 @@ module Pack =
                     (normalizePath $"{workDir}/{filePath}").Replace ("/./", "/")
                     |> Path.GetFullPath
                 if fullFilePath.Equals destFile then Some editMap else None)
-            |> Option.bind (fun editMap ->
+            |> Option.map (fun editMap ->
                 use writer = File.CreateText destFile
                 writer.NewLine <- newLine
                 use reader = File.OpenText srcFile
@@ -128,7 +128,7 @@ module Pack =
                         (fun line (re, repl) -> re.Replace (line, repl))
                         (reader.ReadLine ())
                     |> writer.WriteLine
-                Some ())
+                ())
             |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
 
             progressCallback

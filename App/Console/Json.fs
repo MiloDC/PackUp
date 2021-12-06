@@ -8,20 +8,17 @@ open PackUp
 
 let private (|JArray|_|) (jsonElement : JsonElement, propertyName : string) =
     match jsonElement.TryGetProperty propertyName with
-    | true, jElement when jElement.ValueKind = JsonValueKind.Array ->
-        jElement.EnumerateArray () |> Some
+    | true, el when el.ValueKind = JsonValueKind.Array -> el.EnumerateArray () |> Some
     | _ -> None
 
 let private (|JObj|_|) (jsonElement : JsonElement, propertyName : string) =
     match jsonElement.TryGetProperty propertyName with
-    | true, jElement when jElement.ValueKind = JsonValueKind.Object ->
-        jElement.EnumerateObject () |> Some
+    | true, el when el.ValueKind = JsonValueKind.Object -> el.EnumerateObject () |> Some
     | _ -> None
 
 let private (|JString|_|) (jsonElement : JsonElement, propertyName : string) =
     match jsonElement.TryGetProperty propertyName with
-    | true, jElement when jElement.ValueKind = JsonValueKind.String ->
-        jElement.GetString () |> Some
+    | true, el when el.ValueKind = JsonValueKind.String -> el.GetString () |> Some
     | _ -> None
 
 let private (|JKeyValue|) (jsonProperty : JsonProperty) = jsonProperty.Name, jsonProperty.Value
@@ -111,7 +108,7 @@ let private editsOf caseSensitive (JArrayMap map) =
 
 let internal readFile (configs : Set<string>) caseSens (JFile jFile) =
     jFile
-    |> Option.bind (fun (jsonFilePath, jRoot) ->
+    |> Option.map (fun (jsonFilePath, jRoot) ->
         let filenameCaseSens, editCaseSens = (caseSens &&& 1) > 0, (caseSens &&& 2) > 0
         let globalWL, globalBL, globalIncl = filesOf filenameCaseSens (jRoot, "global_files")
         let globalEdits = editsOf editCaseSens (jRoot, "global_edits")
@@ -142,6 +139,5 @@ let internal readFile (configs : Set<string>) caseSens (JFile jFile) =
                 newLine =
                     match jObj, "newline" with JString s -> NewLine.ofString s | _ -> System
             })
-        |> List.ofSeq
-        |> Some)
+        |> List.ofSeq)
     |> Option.defaultValue List.empty
