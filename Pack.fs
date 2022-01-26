@@ -1,5 +1,6 @@
 ﻿namespace PackUp
 
+open System
 open System.IO
 open System.Text.RegularExpressions
 
@@ -11,6 +12,9 @@ type Pack =
         compression     : Compression
         /// Output file name of the compressed file, minus the extension.
         targetPath      : string
+        /// Root directory name in the compressed file. If null, empty, or whitespace,
+        /// then the root directory name will be the filename component of targetPath.
+        targetRoot      : string
         /// Whitelist, blacklist, and include paths, all relative to rootDir.
         files           : Regex list * Regex list * Regex list
         /// File path relative to Pack.rootDir, (Reg. expr. to match, replacement string)
@@ -28,11 +32,13 @@ type Pack =
         Printf.bprintf sb "compression = "
         match this.compression with
         | Tar -> Printf.bprintf sb "tar\n"
-        | Zip password -> Printf.bprintf sb $"zip (password = \"%s{password}\")\n"
-        | TarZip password -> Printf.bprintf sb $"tarzip (password = \"%s{password}\")\n"
+        | Zip password -> Printf.bprintf sb $"zip (password = \"%O{password}\")\n"
+        | TarZip password -> Printf.bprintf sb $"tarzip (password = \"%O{password}\")\n"
         | NoCompression -> Printf.bprintf sb "none\n"
 
-        Printf.bprintf sb $"targetPath = \"%s{this.targetPath}\"\n"
+        Printf.bprintf sb $"targetPath = \"%O{this.targetPath}\"\n"
+
+        Printf.bprintf sb $"targetRoot = \"%O{this.targetRoot}\"\n"
 
         let whitelist, blacklist, includes = this.files
         [ "whitelist", whitelist; "blacklist", blacklist; "includes", includes ]
@@ -51,9 +57,9 @@ type Pack =
             Printf.bprintf sb "edits =\n"
             this.edits
             |> Seq.iter (fun (filePath, reRepls) ->
-                Printf.bprintf sb $"    \"%s{filePath}\" =\n"
+                Printf.bprintf sb $"    \"%O{filePath}\" =\n"
                 reRepls |> Seq.iter (fun (re, repl) ->
-                    Printf.bprintf sb $"        %O{re} -> \"%s{repl}\"\n"))
+                    Printf.bprintf sb $"        %O{re} -> \"%O{repl}\"\n"))
 
         string sb
 
@@ -76,24 +82,32 @@ module Pack =
             (if not <| System.String.IsNullOrWhiteSpace path then path else "_")
         |> fun s -> s.Replace ($"{dirSep}{dirSep}", $"{dirSep}_{dirSep}")
 
-    let pack progressCallback pack =
-        let rootDir = $"{normalizePath pack.rootDir}/"
+    let pack progressCallback pack' =
+        let p =
+            { pack' with
+                targetRoot =
+                    if not <| String.IsNullOrWhiteSpace pack'.targetRoot then
+                        pack'.targetRoot
+                    else
+                        Path.GetFileName pack'.targetPath
+            }
+        let rootDir = $"{normalizePath p.rootDir}/"
         let mutable packUpRootDir = ""
         while System.String.IsNullOrEmpty packUpRootDir || Directory.Exists packUpRootDir do
             packUpRootDir <-
                 sprintf "%s%s%c"
                     (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep
-        let newLine = string pack.newLine
+        let newLine = string p.newLine
 
         // Copy files.
         let workDir =
-            $"{packUpRootDir}{pack.description}{dirSep}{Path.GetFileName pack.targetPath}{dirSep}"
+            $"{packUpRootDir}{p.description}{dirSep}{p.targetRoot}{dirSep}"
             |> validatePath
         if Directory.Exists workDir then Directory.Delete (workDir, true)
-        let wl, bl, incl = pack.files
+        let wl, bl, incl = p.files
         let copyFiles =
             ("*.*", SearchOption.AllDirectories)
-            |> DirectoryInfo(Path.GetFullPath pack.rootDir).GetFiles
+            |> DirectoryInfo(Path.GetFullPath p.rootDir).GetFiles
             |> Array.choose (fun fileInfo ->
                 let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
                 let isMatch (re : Regex) = re.IsMatch relativeFilePath
@@ -112,7 +126,7 @@ module Pack =
             let destDir = Path.GetDirectoryName destFile
             if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
 
-            pack.edits
+            p.edits
             |> List.tryPick (fun (filePath, editMap) ->
                 let fullFilePath =
                     (normalizePath $"{workDir}/{filePath}").Replace ("/./", "/")
@@ -132,14 +146,14 @@ module Pack =
             |> Option.defaultWith (fun _ -> File.Copy (srcFile, destFile, true))
 
             progressCallback
-            |> Option.iter (fun f -> f (Incomplete (pack.description, single i / jobCount))))
+            |> Option.iter (fun f -> f (Incomplete (p.description, single i / jobCount))))
 
         // Compress files.
         let targetFilePath =
-            pack.compression
+            p.compression
             |> Compression.compress
                 $"{(DirectoryInfo workDir).Parent.FullName}{dirSep}"
-                pack.targetPath
-        progressCallback |> Option.iter (fun f -> f (Complete (pack.description, targetFilePath)))
+                p.targetPath
+        progressCallback |> Option.iter (fun f -> f (Complete (p.description, targetFilePath)))
 
         if Directory.Exists packUpRootDir then Directory.Delete (packUpRootDir, true)

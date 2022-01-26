@@ -119,6 +119,7 @@ let internal readFile (configs : Set<string>) caseSens (JFile jFile) =
         |> Seq.filter (fun (KeyValue (c, _)) -> configs.IsEmpty || configs.Contains c)
         |> Seq.map (fun (KeyValue (config, jObj)) ->
             let tgtName = match jObj, "target_name" with JString s -> s | _ -> config
+            let tgtRoot = match jObj, "target_root" with JString s -> s | _ -> ""
             let password = match jObj, "password" with JString s -> s | _ -> ""
 
             {
@@ -131,6 +132,7 @@ let internal readFile (configs : Set<string>) caseSens (JFile jFile) =
                     | JString s when s = "tarzip" -> TarZip password
                     | _ -> NoCompression
                 targetPath = $"{normalizePath rootDirectory.FullName}/{tgtName}"
+                targetRoot = tgtRoot
                 files =
                     let wl, bl, incl = filesOf filenameCaseSens (jObj, "files")
                     globalWL @ wl, globalBL @ bl, globalIncl @ incl

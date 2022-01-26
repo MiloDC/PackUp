@@ -1,4 +1,4 @@
-# PackUp 1.4.0
+# PackUp 1.5.0
 PackUp is a .NET archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
 
 #### Supported compression formats:
@@ -18,6 +18,7 @@ type Pack =
         rootDir         : string
         compression     : Compression
         targetPath      : string
+        targetRoot      : string
         files           : Regex list * Regex list * Regex list
         edits           : (string, (Regex, string) sequence) list
         newLine         : NewLine
@@ -36,6 +37,8 @@ type Compression =
 Empty or null password strings are interpreted to mean no password protection.  Passing a value of `NoCompression` currently yields undefined behavior, and is therefore discouraged.
 
 `targetPath` is a full path that informs PackUp where to write the generated archive file, minus the file extension (which will be determined by PackUp).
+
+`targetRoot` is the name of the root directory in the archive file.  If this value is null, empty, or whitespace, then the root directory name will be the filename component of `targetPath`.
 
 `files` is a tuple of regular expressions corresponding to whitelist, blacklist, and include items, respectively.  Matches are sought on all files underneath `rootDir`; if a file matches a regular expression on the whitelist, or if it matches a regular expression on the include list without also matching anything on the blacklist, then it will be added to the packed output.
 
@@ -102,6 +105,7 @@ Command options are:
 	"configurations" : {
 		"linux" : {
 			"target_name" : "my-linux-project",
+			"target_root" : "root",
 			"compression" : "tar",
 			"files" : [
 				"*/Makefile",
