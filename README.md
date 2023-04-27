@@ -1,4 +1,4 @@
-# PackUp 1.5.0
+# PackUp 1.5.1
 PackUp is a .NET archival library, coded in F# and designed for use primarily in that language.  In addition to compression, it supports predefined edits to archived files.
 
 #### Supported compression formats:
