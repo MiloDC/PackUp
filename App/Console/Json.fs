@@ -60,28 +60,18 @@ let private (|JFile|) jsonFilePath =
         printfn $"Error reading file %s{jsonFilePath}: %s{exc.Message}"
         None
 
-[<RequireQualifiedAccess>]
-module private RE =
-    let private dotSlashOrAsteriskStart = Regex @"^\./|^\*"
-    let filePath = Regex @"^[+-]*.+"
-    let filePathOptions = Regex @"^[+-]+"
-
-    let regexOf prepareString isCaseSensitive (s : string) =
-        Regex (
-            if prepareString then
-                (s.Replace(".", @"\.").Replace("*", ".*").Replace ("?", ".")
-                |> sprintf "^%s%s$" (if dotSlashOrAsteriskStart.IsMatch s then "" else @"\./"))
-                    .Replace (".*/$", ".*$")
-            else s
-            , if isCaseSensitive then RegexOptions.None else RegexOptions.IgnoreCase)
+let private reFilePath = Regex @"^[+-]*.+"
+let private reFilePathOptions = Regex @"^[+-]+"
 
 let private filesOf caseSensitive (JStringArray files) =
     files
-    |> Seq.filter RE.filePath.IsMatch
+    |> Seq.filter reFilePath.IsMatch
     |> Seq.fold
         (fun (wl, bl, incl) filePath ->
-            let re = RE.filePathOptions.Replace (filePath, "") |> RE.regexOf true caseSensitive
-            let opts = (RE.filePathOptions.Match filePath).Value
+            let re =
+                reFilePathOptions.Replace (filePath, "")
+                |> RE.ofString true true caseSensitive
+            let opts = (reFilePathOptions.Match filePath).Value
             if opts.Contains '+' then
                 wl @ [ re ], bl, incl
             elif opts.Contains '-' then
@@ -100,7 +90,7 @@ let private editsOf caseSensitive (JArrayMap map) =
                     let str = jElement.GetString()
                     match str.Split str.[0] with
                     | [| ""; reStr; replStr |] ->
-                        Some (RE.regexOf false caseSensitive reStr, replStr)
+                        Some (RE.ofString false true caseSensitive reStr, replStr)
                     | _ -> None
                 else None)
         if Seq.length reRepls > 0 then Some (filePath, reRepls) else None)
@@ -131,7 +121,7 @@ let internal readFile (configs : Set<string>) caseSens (JFile jFile) =
                     | JString s when s = "zip" -> Zip password
                     | JString s when s = "tarzip" -> TarZip password
                     | _ -> NoCompression
-                targetPath = $"{normalizePath rootDirectory.FullName}/{tgtName}"
+                targetPath = $"{normalizeFullPath rootDirectory.FullName}/{tgtName}"
                 targetRoot = tgtRoot
                 files =
                     let wl, bl, incl = filesOf filenameCaseSens (jObj, "files")

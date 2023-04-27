@@ -1,8 +1,5 @@
 ﻿namespace PackUp
 
-open System.IO
-open ICSharpCode.SharpZipLib
-
 type Compression =
     | Tar
     | Zip of password : string
@@ -11,6 +8,9 @@ type Compression =
 
 [<RequireQualifiedAccess>]
 module internal Compression =
+    open System.IO
+    open ICSharpCode.SharpZipLib
+
     let rec compress (NativeFullPath srcPath) (NativeFullPath targetPath) compression =
         match compression with
         | Tar ->

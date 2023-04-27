@@ -1,7 +1,5 @@
 ﻿namespace PackUp
 
-open System
-open System.IO
 open System.Text.RegularExpressions
 
 type Pack =
@@ -69,6 +67,9 @@ type Progress =
 
 [<RequireQualifiedAccess>]
 module Pack =
+    open System
+    open System.IO
+
     let private reDotSlash = Regex @"^\./"
 
     let private invalidPathChars =
@@ -91,12 +92,14 @@ module Pack =
                     else
                         Path.GetFileName pack'.targetPath
             }
-        let rootDir = $"{normalizePath p.rootDir}/"
+        let rootDir = $"{normalizeFullPath p.rootDir}/"
         let mutable packUpRootDir = ""
         while System.String.IsNullOrEmpty packUpRootDir || Directory.Exists packUpRootDir do
             packUpRootDir <-
                 sprintf "%s%s%c"
-                    (Path.GetTempPath ()) (Path.GetRandomFileName().Replace (".", "")) dirSep
+                    (Path.GetTempPath ())
+                    (Path.GetRandomFileName().Replace (".", ""))
+                    dirSep
         let newLine = string p.newLine
 
         // Copy files.
@@ -109,7 +112,8 @@ module Pack =
             ("*.*", SearchOption.AllDirectories)
             |> DirectoryInfo(Path.GetFullPath p.rootDir).GetFiles
             |> Array.choose (fun fileInfo ->
-                let relativeFilePath = (normalizePath fileInfo.FullName).Replace (rootDir, "./")
+                let relativeFilePath =
+                    (normalizeFullPath fileInfo.FullName).Replace (rootDir, "./")
                 let isMatch (re : Regex) = re.IsMatch relativeFilePath
                 if
                     (wl |> List.exists isMatch)
@@ -121,17 +125,18 @@ module Pack =
                         Path.GetFullPath $"{workDir}{relFilePath}")
                 else None)
         let jobCount = (Seq.length copyFiles) + 1 |> single   // +1 for compression
+
         copyFiles
         |> Array.iteri (fun i (srcFile, destFile) ->
             let destDir = Path.GetDirectoryName destFile
+            let destFileShort = destFile.Replace (workDir, "") |> normalizePath
             if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
 
             p.edits
-            |> List.tryPick (fun (filePath, editMap) ->
-                let fullFilePath =
-                    (normalizePath $"{workDir}/{filePath}").Replace ("/./", "/")
-                    |> Path.GetFullPath
-                if fullFilePath.Equals destFile then Some editMap else None)
+            |> List.tryPick (fun (rePath, editMap) ->
+                let rePathShort = rePath.Replace (rootDir, "")
+                let re = (normalizePath $"{rePathShort}") |> RE.ofString true false true
+                if re.IsMatch destFileShort then Some editMap else None)
             |> Option.map (fun editMap ->
                 use writer = File.CreateText destFile
                 writer.NewLine <- newLine
