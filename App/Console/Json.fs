@@ -23,7 +23,8 @@ let private (|JString|_|) (jsonElement : JsonElement, propertyName : string) =
 
 let private (|JKeyValue|) (jsonProperty : JsonProperty) = jsonProperty.Name, jsonProperty.Value
 
-let private (|JStringArray|) = function
+let private (|JStringArray|) =
+    function
     | JArray jArray ->
         jArray
         |> Seq.choose (fun el ->
@@ -33,7 +34,8 @@ let private (|JStringArray|) = function
             else None)
     | _ -> Seq.empty
 
-let private (|JArrayMap|) = function
+let private (|JArrayMap|) =
+    function
     | JObj jObj ->
         jObj
         |> Seq.choose (fun (JKeyValue (k, v)) ->
@@ -41,7 +43,8 @@ let private (|JArrayMap|) = function
         |> dict
     | _ -> dict Seq.empty
 
-let private (|JObjectMap|) = function
+let private (|JObjectMap|) =
+    function
     | JObj jObj ->
         jObj
         |> Seq.choose (fun (JKeyValue (k, v)) ->
@@ -87,7 +90,7 @@ let private editsOf caseSensitive (JArrayMap map) =
             jArray.EnumerateArray ()
             |> Seq.choose (fun jElement ->
                 if JsonValueKind.String = jElement.ValueKind then
-                    let str = jElement.GetString()
+                    let str = jElement.GetString ()
                     match str.Split str.[0] with
                     | [| ""; reStr; replStr |] ->
                         Some (RE.ofString false true caseSensitive reStr, replStr)

@@ -11,7 +11,8 @@ let private AppVersion =
     let assm = System.Reflection.Assembly.GetExecutingAssembly ()
     System.Diagnostics.FileVersionInfo.GetVersionInfo(assm.Location).FileVersion
 
-let private showProgress = function
+let private showProgress =
+    function
     | Incomplete (config, pct) ->
         (String.replicate (int (single ProgBarLen * pct)) "#").PadRight (ProgBarLen, '_')
         |> printf "\r%s [%s]" config

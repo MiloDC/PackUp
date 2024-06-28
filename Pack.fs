@@ -133,10 +133,12 @@ module Pack =
             if not <| Directory.Exists destDir then Directory.CreateDirectory destDir |> ignore
 
             p.edits
-            |> List.tryPick (fun (rePath, editMap) ->
+            |> List.choose (fun (rePath, editMap) ->
                 let rePathShort = rePath.Replace (rootDir, "")
                 let re = (normalizePath $"{rePathShort}") |> RE.ofString true false true
                 if re.IsMatch destFileShort then Some editMap else None)
+            |> (fun editMaps ->
+                if List.isEmpty editMaps then None else editMaps |> Seq.concat |> Some)
             |> Option.map (fun editMap ->
                 use writer = File.CreateText destFile
                 writer.NewLine <- newLine
