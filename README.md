@@ -20,7 +20,7 @@ type Pack =
         targetPath      : string
         targetRoot      : string
         files           : Regex list * Regex list * Regex list
-        edits           : (string, (Regex, string) sequence) list
+        edits           : (string * (Regex * string) sequence) list
         newLine         : NewLine
     }
 ```
@@ -50,7 +50,7 @@ This would result in the replacement of any line text matching the given regular
 
 **Note that all file paths (regular expressions and strings) in `files` and `edits` must represent paths relative to `rootDir`, _not_ full paths.**
 
-`newLine` defines the newline string written during file edits.  The `NewLine` discriminated union comprises `CR`, `LF`, `CRLF`, and `System` (i.e. the newline string of the operating system on which the packing operation takes place).
+`newLine` defines the newline string written during file edits.  The `NewLine` discriminated union comprises `CR`, `LF`, `CRLF`, and `System` (i.e. the default newline string of the operating system on which the packing operation takes place).
 
 ### Packing files
 
