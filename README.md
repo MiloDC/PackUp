@@ -147,7 +147,7 @@ Command options are:
 ## Dependencies
 PackUp employs the following third-party libraries:
 
-- [SharpZipLib](https://github.com/PingmanTools/SharpZipLib)
+- [SharpZipLib](https://github.com/icsharpcode/SharpZipLib)
 
 ## Credits
 PackUp is authored by [Milo D. Cooper](https://www.miloonline.net).
